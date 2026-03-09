@@ -16,7 +16,7 @@
   --mono: 'JetBrains Mono','Courier New',monospace;
   --sans: 'IBM Plex Sans',system-ui,sans-serif;
   --hdr-h: 42px;
-  --map-h: 50vh;   /* map takes ~50% of viewport height */
+  --map-h: 48vh;   /* map takes ~48% of viewport height */
   --panel-h: 280px; /* uniform panel card height */
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -106,25 +106,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:13p
 .spinner-lbl{font-size:.57rem;color:var(--dim);letter-spacing:.12em;}
 
 /* ── INFO BUTTON + TOOLTIP ─────────────────────────────────────────────── */
-.info-wrap{position:relative;flex-shrink:0;}
-.info-btn{font-family:var(--mono);font-size:.58rem;font-weight:700;
-  width:15px;height:15px;border-radius:50%;border:1px solid var(--brd-h);
-  background:transparent;color:var(--dim);cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;
-  transition:border-color .12s,color .12s;line-height:1;padding:0;}
-.info-btn:hover,.info-wrap:hover .info-btn{border-color:var(--blue);color:var(--blue);}
-.info-tooltip{display:none;position:absolute;top:22px;right:0;z-index:600;
-  background:#070f07;border:1px solid var(--brd-h);border-radius:3px;
-  padding:9px 11px;width:250px;font-size:.61rem;line-height:1.65;
-  color:var(--txt2);box-shadow:0 6px 28px rgba(0,0,0,.7);}
-.info-tooltip.left{right:auto;left:0;}
-.info-wrap:hover .info-tooltip{display:block;}
-.info-tooltip strong{color:var(--green);font-weight:700;display:block;
-  margin-bottom:5px;font-size:.62rem;letter-spacing:.07em;
-  border-bottom:1px solid var(--brd);padding-bottom:4px;}
-.info-tooltip .src{display:flex;gap:5px;align-items:baseline;margin-top:4px;}
-.info-tooltip .src-tag{font-size:.52rem;font-weight:700;color:#050e05;
-  background:var(--green);padding:1px 4px;border-radius:1px;flex-shrink:0;letter-spacing:.06em;}
+/* info styles defined below */
 
 /* ── RESIZE BAR ────────────────────────────────────────────────────────── */
 #resize-bar{display:flex;align-items:center;gap:8px;padding:3px 10px;
@@ -146,20 +128,20 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:13p
 .spinner-lbl{font-size:.62rem;color:var(--dim);letter-spacing:.1em;}
 
 /* ── INFO BUTTON & TOOLTIP ── */
+.info-wrap{position:relative;flex-shrink:0;}
 .info-btn{font-family:var(--mono);font-size:.6rem;font-weight:700;width:16px;height:16px;
   border-radius:50%;border:1px solid var(--brd-h);background:transparent;color:var(--dim);
   cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;
   transition:border-color .12s,color .12s;line-height:1;padding:0;}
 .info-btn:hover{border-color:var(--blue);color:var(--blue);}
-.info-tooltip{display:none;position:absolute;top:28px;right:6px;z-index:500;
+/* Tooltip uses fixed positioning so it always floats above all panels */
+.info-tooltip{display:none;position:fixed;z-index:9999;
   background:#0a1a0a;border:1px solid var(--brd-h);border-radius:3px;
   padding:9px 11px;width:240px;font-size:.62rem;line-height:1.6;color:var(--txt2);
-  box-shadow:0 4px 24px rgba(0,0,0,.6);}
-.info-tooltip.left{right:auto;left:6px;}
-.info-tooltip strong{color:var(--green);font-weight:700;display:block;margin-bottom:4px;font-size:.63rem;letter-spacing:.06em;}
+  box-shadow:0 4px 24px rgba(0,0,0,.8);pointer-events:none;}
+.info-tooltip strong{color:var(--green);font-weight:700;display:block;margin-bottom:4px;font-size:.63rem;letter-spacing:.06em;border-bottom:1px solid var(--brd-h);padding-bottom:4px;}
 .info-tooltip .src{display:flex;gap:5px;align-items:baseline;margin-top:3px;}
 .info-tooltip .src-tag{font-size:.53rem;font-weight:700;color:var(--green);background:rgba(57,211,83,.1);padding:1px 4px;border-radius:1px;flex-shrink:0;}
-.info-wrap{position:relative;flex-shrink:0;}
 .info-wrap:hover .info-tooltip,.info-btn:focus+.info-tooltip{display:block;}
 
 /* ── RESIZE CONTROLS ── */
@@ -283,65 +265,6 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
   .panel.wide{grid-column:span 1;}
   .hl-s{display:none;}
 }
-
-/* ── MAP DRAG HANDLE ── */
-#map-resize-handle{
-  flex:0 0 6px;background:transparent;cursor:ns-resize;
-  position:relative;z-index:100;
-  display:flex;align-items:center;justify-content:center;
-  transition:background .15s;
-}
-#map-resize-handle:hover,#map-resize-handle.dragging{background:rgba(57,211,83,.18);}
-#map-resize-handle::after{
-  content:'';display:block;width:32px;height:3px;
-  border-radius:2px;background:var(--brd-h);transition:background .15s;
-}
-#map-resize-handle:hover::after,#map-resize-handle.dragging::after{background:var(--green);}
-
-/* ── PANEL DRAG HANDLES ── */
-.panel{position:relative;}
-.panel-resize-e{
-  position:absolute;top:0;right:-3px;width:6px;height:100%;
-  cursor:ew-resize;z-index:50;
-  background:transparent;transition:background .15s;
-  border-radius:0 3px 3px 0;
-}
-.panel-resize-s{
-  position:absolute;bottom:-3px;left:0;width:100%;height:6px;
-  cursor:ns-resize;z-index:50;
-  background:transparent;transition:background .15s;
-  border-radius:0 0 3px 3px;
-}
-.panel-resize-e:hover,.panel-resize-e.dragging{background:rgba(57,211,83,.18);}
-.panel-resize-s:hover,.panel-resize-s.dragging{background:rgba(57,211,83,.18);}
-
-/* ── INFO MODAL OVERLAY ── */
-#info-modal-overlay{
-  display:none;position:fixed;inset:0;z-index:9000;
-  background:rgba(5,10,5,.7);backdrop-filter:blur(2px);
-  align-items:center;justify-content:center;
-}
-#info-modal-overlay.open{display:flex;}
-#info-modal{
-  background:var(--bg-c);border:1px solid var(--brd-h);border-radius:4px;
-  padding:18px 20px 16px;min-width:280px;max-width:420px;width:90vw;
-  max-height:80vh;overflow-y:auto;position:relative;
-  box-shadow:0 8px 40px rgba(0,0,0,.7);
-}
-#info-modal-close{
-  position:absolute;top:8px;right:10px;
-  background:transparent;border:none;color:var(--dim);
-  font-family:var(--mono);font-size:.8rem;cursor:pointer;
-  line-height:1;padding:2px 4px;
-}
-#info-modal-close:hover{color:var(--txt);}
-#info-modal strong{color:var(--green);font-weight:700;display:block;
-  margin-bottom:10px;font-size:.68rem;letter-spacing:.08em;
-  padding-bottom:6px;border-bottom:1px solid var(--brd-h);}
-#info-modal .src{display:flex;gap:5px;align-items:baseline;margin-top:4px;}
-#info-modal .src-tag{font-size:.53rem;font-weight:700;color:var(--green);
-  background:rgba(57,211,83,.1);padding:1px 4px;border-radius:1px;flex-shrink:0;}
-#info-modal .src span{font-size:.65rem;color:var(--txt2);line-height:1.4;}
 </style>
 </head>
 <body>
@@ -382,9 +305,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
       <iframe src="https://www.ecosolve.eco/dashboard" allowfullscreen loading="lazy"></iframe>
       <a href="https://www.ecosolve.eco/dashboard" target="_blank" class="mext" style="color:#c77dff;border-color:#c77dff;">OPEN FULL MAP ↗</a>
     </div>
-    </div>
+  </div>
 </div>
-<div id="map-resize-handle" title="Drag to resize map"></div>
 
 <!-- PANELS — scroll with page, 3-column grid -->
 <div id="panels-wrap">
@@ -405,15 +327,14 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
   <!-- NEWS FEEDS: wide 2-col, tall -->
   <div class="panel wide tall">
-<div class="panel-resize-e"></div><div class="panel-resize-s"></div>
     <div class="ph">
       <span class="phl">📰 INTELLIGENCE NEWS FEEDS</span>
       <div class="phr">
-        <div class="info-wrap"><button class="info-btn" aria-label="Info" onclick="openInfoModal(this)">i</button><template class="info-tpl"><strong>INTELLIGENCE NEWS FEEDS</strong>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>INTELLIGENCE NEWS FEEDS</strong>
             <div class="src"><span class="src-tag">MONGABAY</span>news.mongabay.com — wildlife crime, logging, deforestation, mining, indigenous</div>
             <div class="src"><span class="src-tag">GRIST</span>grist.org — climate &amp; environmental policy</div>
             <div class="src"><span class="src-tag">GUARDIAN</span>theguardian.com/environment — global environment</div>
-            <div class="src"><span class="src-tag">PROXY</span>corsproxy.io with allorigins.win fallback · RSS XML parsed client-side</template></div></div>
+            <div class="src"><span class="src-tag">PROXY</span>corsproxy.io with allorigins.win fallback · RSS XML parsed client-side</div></div></div>
       </div>
     </div>
     <div class="tbar" id="feed-tab-bar"></div>
@@ -422,17 +343,16 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
   <!-- AI BRIEFING: tall -->
   <div class="panel tall">
-<div class="panel-resize-e"></div><div class="panel-resize-s"></div>
     <div class="ph">
       <span class="phl">🤖 AI INTEL — GROQ / LLAMA 3.3</span>
       <div class="phr">
         <span class="fupd" id="ai-upd">—</span>
         <button class="rbtn" id="ai-refresh-btn" onclick="runAllAI()" style="color:#39d353;border-color:#39d353;">↻</button>
-        <div class="info-wrap"><button class="info-btn" aria-label="Info" onclick="openInfoModal(this)">i</button><template class="info-tpl"><strong>AI INTEL BRIEFINGS</strong>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>AI INTEL BRIEFINGS</strong>
             <div class="src"><span class="src-tag">MODEL</span>Llama 3.3-70b-versatile (Meta) via Groq inference API</div>
             <div class="src"><span class="src-tag">API</span>api.groq.com/openai/v1/chat/completions</div>
             <div class="src"><span class="src-tag">TABS</span>Threat · Hotspots · Species · Policy — date-aware prompts</div>
-            <div class="src"><span class="src-tag">KEY</span>Requires free Groq API key at console.groq.com/keys</template></div></div>
+            <div class="src"><span class="src-tag">KEY</span>Requires free Groq API key at console.groq.com/keys</div></div></div>
       </div>
     </div>
     <div class="tbar" id="ai-tab-bar">
@@ -451,20 +371,19 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
   <!-- ESI: wide 2-col, tall -->
   <div class="panel wide tall" id="esi-panel" style="flex-direction:row;overflow:hidden;">
-<div class="panel-resize-e"></div><div class="panel-resize-s"></div>
     <div id="esi-list" style="width:100%;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;transition:width .25s ease;">
       <div class="ph" style="flex-shrink:0;">
         <span class="phl">🌍 ENVIRONMENTAL STABILITY INDEX</span>
         <div class="phr">
           <span class="fupd" id="esi-upd">—</span>
           <button class="rbtn" onclick="buildESI()" style="color:#39d353;border-color:#39d353;">↻</button>
-          <div class="info-wrap"><button class="info-btn" aria-label="Info" onclick="openInfoModal(this)">i</button><template class="info-tpl"><strong>ENVIRONMENTAL STABILITY INDEX</strong>
+          <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>ENVIRONMENTAL STABILITY INDEX</strong>
             <div class="src"><span class="src-tag">WORLD BANK</span>Forest area % (AG.LND.FRST.ZS) — weight 30%</div>
             <div class="src"><span class="src-tag">WORLD BANK</span>Protected areas % (ER.PTD.TOTL.ZS) — weight 20%</div>
             <div class="src"><span class="src-tag">RELIEFWEB</span>Disaster events past 12 months — weight 20%</div>
             <div class="src"><span class="src-tag">WORLD BANK</span>CO₂ t/capita (EN.ATM.CO2E.PC) — weight 15%</div>
             <div class="src"><span class="src-tag">WORLD BANK</span>PM2.5 µg/m³ (EN.ATM.PM25.MC.M3) — weight 15%</div>
-            <div class="src"><span class="src-tag">NOTE</span>Missing values default to neutral (50). WB data ~1–2 yr lag.</template></div></div>
+            <div class="src"><span class="src-tag">NOTE</span>Missing values default to neutral (50). WB data ~1–2 yr lag.</div></div></div>
         </div>
       </div>
       <div class="pnote" style="flex-shrink:0;">Click a country to expand full intel breakdown</div>
@@ -487,17 +406,16 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
   <!-- EONET -->
   <div class="panel">
-<div class="panel-resize-e"></div><div class="panel-resize-s"></div>
     <div class="ph">
       <span class="phl">🔥 NASA EONET — NATURAL EVENTS</span>
       <div class="phr">
         <span class="fupd" id="eonet-upd">—</span>
         <button class="rbtn" onclick="loadEONET()" style="color:#ff6b35;border-color:#ff6b35;">↻</button>
-        <div class="info-wrap"><button class="info-btn" aria-label="Info" onclick="openInfoModal(this)">i</button><template class="info-tpl"><strong>NASA EONET — NATURAL EVENTS</strong>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>NASA EONET — NATURAL EVENTS</strong>
             <div class="src"><span class="src-tag">SOURCE</span>eonet.gsfc.nasa.gov/api/v3/events — free, no key required</div>
             <div class="src"><span class="src-tag">EVENTS</span>Wildfires, Volcanoes, Floods, Severe Storms, Droughts, Dust &amp; Haze, Landslides</div>
             <div class="src"><span class="src-tag">FILTER</span>Wildfires limited to 48 hr window; all others 7 days · up to 80 open events</div>
-            <div class="src"><span class="src-tag">NOTE</span>Direct fetch — CORS-enabled NASA API, no proxy needed</template></div></div>
+            <div class="src"><span class="src-tag">NOTE</span>Direct fetch — CORS-enabled NASA API, no proxy needed</div></div></div>
       </div>
     </div>
     <div class="pnote">Wildfires (48hr) · Volcanoes · Floods · Storms · 7 days</div>
@@ -506,17 +424,16 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
   <!-- ERA5 -->
   <div class="panel">
-<div class="panel-resize-e"></div><div class="panel-resize-s"></div>
     <div class="ph">
       <span class="phl">🌡 ERA5 — TEMP ANOMALY vs 1 YR AGO</span>
       <div class="phr">
         <span class="fupd" id="era5-upd">—</span>
         <button class="rbtn" onclick="loadERA5()" style="color:#a8dadc;border-color:#a8dadc;">↻</button>
-        <div class="info-wrap"><button class="info-btn" aria-label="Info" onclick="openInfoModal(this)">i</button><template class="info-tpl"><strong>ERA5 TEMPERATURE ANOMALY</strong>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>ERA5 TEMPERATURE ANOMALY</strong>
             <div class="src"><span class="src-tag">SOURCE</span>archive-api.open-meteo.com — ERA5 reanalysis, free, no key</div>
             <div class="src"><span class="src-tag">METHOD</span>14-day mean temp (now) minus same 14 days exactly 1 year prior</div>
             <div class="src"><span class="src-tag">VARS</span>temperature_2m_max + temperature_2m_min averaged per region</div>
-            <div class="src"><span class="src-tag">ZONES</span>Amazon · Congo · Siberia · Arctic · SE Asia · Sahel · Australia · Greenland</template></div></div>
+            <div class="src"><span class="src-tag">ZONES</span>Amazon · Congo · Siberia · Arctic · SE Asia · Sahel · Australia · Greenland</div></div></div>
       </div>
     </div>
     <div class="pnote">Open-Meteo ERA5 · 8 ecological zones · ▲▼ vs prior year</div>
@@ -525,18 +442,17 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
   <!-- SST -->
   <div class="panel">
-<div class="panel-resize-e"></div><div class="panel-resize-s"></div>
     <div class="ph">
       <span class="phl">🌊 SEA SURFACE TEMP ANOMALY</span>
       <div class="phr">
         <span class="fupd" id="sst-upd">—</span>
         <button class="rbtn" onclick="loadSST()" style="color:#a8dadc;border-color:#a8dadc;">↻</button>
-        <div class="info-wrap"><button class="info-btn" aria-label="Info" onclick="openInfoModal(this)">i</button><template class="info-tpl"><strong>SEA SURFACE TEMPERATURE ANOMALY</strong>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>SEA SURFACE TEMPERATURE ANOMALY</strong>
             <div class="src"><span class="src-tag">SOURCE</span>marine-api.open-meteo.com — free, no key required</div>
             <div class="src"><span class="src-tag">VAR</span>sea_surface_temperature_max — 3 days back to avoid data gaps</div>
             <div class="src"><span class="src-tag">METHOD</span>Current SST minus same date prior year (anomaly)</div>
             <div class="src"><span class="src-tag">RISK</span>&gt;+2°C anomaly signals coral bleaching / ecosystem stress</div>
-            <div class="src"><span class="src-tag">REGIONS</span>Great Barrier Reef · Caribbean · Gulf of Mexico · Coral Triangle · Arctic · Indian Ocean · Mediterranean · Amazon Plume</template></div></div>
+            <div class="src"><span class="src-tag">REGIONS</span>Great Barrier Reef · Caribbean · Gulf of Mexico · Coral Triangle · Arctic · Indian Ocean · Mediterranean · Amazon Plume</div></div></div>
       </div>
     </div>
     <div class="pnote">Open-Meteo Marine · 8 ocean regions · ▲▼ vs prior year</div>
@@ -545,16 +461,15 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
   <!-- WJC -->
   <div class="panel">
-<div class="panel-resize-e"></div><div class="panel-resize-s"></div>
     <div class="ph">
       <span class="phl">🚨 WILDLIFE JUSTICE COMMISSION</span>
       <div class="phr">
         <span class="fupd" id="wjc-upd">—</span>
         <button class="rbtn" onclick="loadWJC()" style="color:#ff2244;border-color:#ff2244;">↻</button>
-        <div class="info-wrap"><button class="info-btn" aria-label="Info" onclick="openInfoModal(this)">i</button><template class="info-tpl"><strong>WILDLIFE JUSTICE COMMISSION</strong>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>WILDLIFE JUSTICE COMMISSION</strong>
             <div class="src"><span class="src-tag">PRIMARY</span>wildlifejustice.org/feed/ — WJC press releases &amp; enforcement operations</div>
             <div class="src"><span class="src-tag">FALLBACK</span>news.mongabay.com wildlife-crime feed if WJC RSS unavailable</div>
-            <div class="src"><span class="src-tag">DELIVERY</span>RSS via CORS proxy · up to 15 items</template></div></div>
+            <div class="src"><span class="src-tag">DELIVERY</span>RSS via CORS proxy · up to 15 items</div></div></div>
       </div>
     </div>
     <div class="pnote">Live enforcement actions &amp; arrests · WJC RSS</div>
@@ -563,17 +478,16 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
   <!-- RELIEFWEB -->
   <div class="panel">
-<div class="panel-resize-e"></div><div class="panel-resize-s"></div>
     <div class="ph">
       <span class="phl">🌪 RELIEFWEB — ENV DISASTERS</span>
       <div class="phr">
         <span class="fupd" id="relief-upd">—</span>
         <button class="rbtn" onclick="loadReliefWeb()" style="color:#e8c547;border-color:#e8c547;">↻</button>
-        <div class="info-wrap"><button class="info-btn" aria-label="Info" onclick="openInfoModal(this)">i</button><template class="info-tpl"><strong>RELIEFWEB DISASTER FEED</strong>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>RELIEFWEB DISASTER FEED</strong>
             <div class="src"><span class="src-tag">SOURCE</span>api.reliefweb.int/v1/disasters — UN OCHA, free, CORS-enabled</div>
             <div class="src"><span class="src-tag">FILTER</span>Flood, Drought, Wildfire, Cyclone / Tropical Storm events</div>
             <div class="src"><span class="src-tag">SORT</span>Most recent first · up to 20 events</div>
-            <div class="src"><span class="src-tag">FALLBACK</span>reliefweb.int/disasters/rss.xml via CORS proxy if JSON fails</template></div></div>
+            <div class="src"><span class="src-tag">FALLBACK</span>reliefweb.int/disasters/rss.xml via CORS proxy if JSON fails</div></div></div>
       </div>
     </div>
     <div class="pnote">Floods · Droughts · Wildfires · Cyclones · UN OCHA</div>
@@ -582,17 +496,16 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
   <!-- KEYWORD TRENDS -->
   <div class="panel">
-<div class="panel-resize-e"></div><div class="panel-resize-s"></div>
     <div class="ph">
       <span class="phl">📈 KEYWORD SPIKE MONITOR</span>
       <div class="phr">
         <span class="fupd" id="trends-upd">—</span>
         <button class="rbtn" onclick="loadTrends()" style="color:#c77dff;border-color:#c77dff;">↻</button>
-        <div class="info-wrap"><button class="info-btn" aria-label="Info" onclick="openInfoModal(this)">i</button><template class="info-tpl"><strong>KEYWORD SPIKE MONITOR</strong>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>KEYWORD SPIKE MONITOR</strong>
             <div class="src"><span class="src-tag">SOURCE</span>trends.google.com/trends/api/dailytrends — US daily trending searches</div>
             <div class="src"><span class="src-tag">PROXY</span>Fetched via CORS proxy (unofficial endpoint — may occasionally fail)</div>
             <div class="src"><span class="src-tag">METHOD</span>Checks each keyword against today's top trending queries for a match</div>
-            <div class="src"><span class="src-tag">TERMS</span>CITES · IUCN · climate change · deforestation · wildlife trafficking · illegal fishing · pangolin · rhino poaching</template></div></div>
+            <div class="src"><span class="src-tag">TERMS</span>CITES · IUCN · climate change · deforestation · wildlife trafficking · illegal fishing · pangolin · rhino poaching</div></div></div>
       </div>
     </div>
     <div class="pnote">Google Trends daily · ⚡ spike = term in today's top searches</div>
@@ -601,16 +514,15 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
 
   <!-- CO2 + SOURCES -->
   <div class="panel">
-<div class="panel-resize-e"></div><div class="panel-resize-s"></div>
     <div class="ph">
       <span class="phl">📡 NOAA CO₂ · DATA SOURCES</span>
       <div class="phr">
         <button class="rbtn" onclick="loadCO2()" style="color:#a8dadc;border-color:#a8dadc;">↻</button>
-        <div class="info-wrap"><button class="info-btn" aria-label="Info" onclick="openInfoModal(this)">i</button><template class="info-tpl"><strong>NOAA MAUNA LOA CO₂</strong>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>NOAA MAUNA LOA CO₂</strong>
             <div class="src"><span class="src-tag">SOURCE</span>gml.noaa.gov — NOAA Global Monitoring Laboratory</div>
             <div class="src"><span class="src-tag">FILE</span>co2_weekly_mlo.csv — Mauna Loa Observatory, Hawaii (since 1958)</div>
             <div class="src"><span class="src-tag">DELIVERY</span>CORS proxy · latest weekly ppm value + year-on-year delta</div>
-            <div class="src"><span class="src-tag">UNIT</span>ppm — dry air mole fraction of CO₂</template></div></div>
+            <div class="src"><span class="src-tag">UNIT</span>ppm — dry air mole fraction of CO₂</div></div></div>
       </div>
     </div>
     <div id="co2-out" style="border-bottom:1px solid var(--brd);flex-shrink:0;"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
@@ -1249,186 +1161,61 @@ function resizePanels(){
 function resetPanelSize(){
   document.getElementById("rng-w").value=280;
   document.getElementById("rng-h").value=280;
-  // Clear any per-panel inline sizes from drag resize
-  document.querySelectorAll('#pgrid .panel').forEach(p=>{
-    p.style.minWidth=''; p.style.maxWidth='';
-    p.style.minHeight=''; p.style.maxHeight='';
-  });
   resizePanels();
 }
 
-
-
-// ── INFO MODAL ────────────────────────────────────────────────────────────────
-function openInfoModal(btn) {
-  const tpl = btn.parentElement.querySelector('template.info-tpl');
-  if(!tpl) return;
-  document.getElementById('info-modal-body').innerHTML = tpl.innerHTML;
-  document.getElementById('info-modal-overlay').classList.add('open');
-}
-function closeInfoModal(e) {
-  // Close if clicking overlay background or close button (not modal itself)
-  if(e && e.target !== document.getElementById('info-modal-overlay') &&
-         e.target !== document.getElementById('info-modal-close')) return;
-  document.getElementById('info-modal-overlay').classList.remove('open');
-}
-document.addEventListener('keydown', e => {
-  if(e.key === 'Escape') document.getElementById('info-modal-overlay').classList.remove('open');
-});
-
-// ── MAP VERTICAL DRAG RESIZE ──────────────────────────────────────────────────
-(function(){
-  const handle = document.getElementById('map-resize-handle');
-  const mapWrap = document.getElementById('map-wrap');
-  const shell   = document.getElementById('shell');
-  let dragging = false, startY = 0, startH = 0;
-
-  handle.addEventListener('mousedown', e => {
-    dragging = true;
-    startY = e.clientY;
-    startH = mapWrap.getBoundingClientRect().height;
-    handle.classList.add('dragging');
-    document.body.style.cursor = 'ns-resize';
-    document.body.style.userSelect = 'none';
-    e.preventDefault();
-  });
-
-  document.addEventListener('mousemove', e => {
-    if(!dragging) return;
-    const delta = e.clientY - startY;
-    const shellH = shell.getBoundingClientRect().height;
-    const newH = Math.min(Math.max(startH + delta, 120), shellH - 160);
-    mapWrap.style.flex = `0 0 ${newH}px`;
-  });
-
-  document.addEventListener('mouseup', () => {
-    if(!dragging) return;
-    dragging = false;
-    handle.classList.remove('dragging');
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-  });
-
-  // Touch support
-  handle.addEventListener('touchstart', e => {
-    dragging = true;
-    startY = e.touches[0].clientY;
-    startH = mapWrap.getBoundingClientRect().height;
-    handle.classList.add('dragging');
-    e.preventDefault();
-  }, {passive:false});
-
-  document.addEventListener('touchmove', e => {
-    if(!dragging) return;
-    const delta = e.touches[0].clientY - startY;
-    const shellH = shell.getBoundingClientRect().height;
-    const newH = Math.min(Math.max(startH + delta, 120), shellH - 160);
-    mapWrap.style.flex = `0 0 ${newH}px`;
-  }, {passive:false});
-
-  document.addEventListener('touchend', () => {
-    dragging = false;
-    handle.classList.remove('dragging');
-  });
-})();
-
-// ── PANEL DRAG RESIZE ─────────────────────────────────────────────────────────
-(function(){
-  let dragging = false;
-  let handle = null, panel = null;
-  let dir = '';  // 'e' = east/width, 's' = south/height
-  let startX = 0, startY = 0, startW = 0, startH = 0;
-
-  document.addEventListener('mousedown', e => {
-    const el = e.target;
-    if(!el.classList.contains('panel-resize-e') && !el.classList.contains('panel-resize-s')) return;
-    dragging = true;
-    handle = el;
-    panel  = el.parentElement;
-    dir    = el.classList.contains('panel-resize-e') ? 'e' : 's';
-    startX = e.clientX;
-    startY = e.clientY;
-    const rect = panel.getBoundingClientRect();
-    startW = rect.width;
-    startH = rect.height;
-    handle.classList.add('dragging');
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = dir === 'e' ? 'ew-resize' : 'ns-resize';
-    e.preventDefault();
-  });
-
-  document.addEventListener('mousemove', e => {
-    if(!dragging || !panel) return;
-    if(dir === 'e') {
-      const newW = Math.max(startW + (e.clientX - startX), 160);
-      panel.style.minWidth  = newW + 'px';
-      panel.style.maxWidth  = newW + 'px';
-      // Sync the slider if user drags a panel
-      const slider = document.getElementById('rng-w');
-      if(slider) { slider.value = Math.min(Math.max(newW, +slider.min), +slider.max); document.getElementById('rng-w-val').textContent = Math.round(newW)+'px'; }
-    } else {
-      const newH = Math.max(startH + (e.clientY - startY), 120);
-      panel.style.minHeight = newH + 'px';
-      panel.style.maxHeight = newH + 'px';
-      const slider = document.getElementById('rng-h');
-      if(slider) { slider.value = Math.min(Math.max(newH, +slider.min), +slider.max); document.getElementById('rng-h-val').textContent = Math.round(newH)+'px'; }
-    }
-  });
-
-  document.addEventListener('mouseup', () => {
-    if(!dragging) return;
-    dragging = false;
-    if(handle) handle.classList.remove('dragging');
-    handle = null; panel = null;
-    document.body.style.userSelect = '';
-    document.body.style.cursor = '';
-  });
-
-  // Touch support
-  document.addEventListener('touchstart', e => {
-    const el = e.target;
-    if(!el.classList.contains('panel-resize-e') && !el.classList.contains('panel-resize-s')) return;
-    dragging = true;
-    handle = el;
-    panel  = el.parentElement;
-    dir    = el.classList.contains('panel-resize-e') ? 'e' : 's';
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    const rect = panel.getBoundingClientRect();
-    startW = rect.width;
-    startH = rect.height;
-    handle.classList.add('dragging');
-    e.preventDefault();
-  }, {passive:false});
-
-  document.addEventListener('touchmove', e => {
-    if(!dragging || !panel) return;
-    if(dir === 'e') {
-      panel.style.minWidth = panel.style.maxWidth = Math.max(startW + (e.touches[0].clientX - startX), 160) + 'px';
-    } else {
-      panel.style.minHeight = panel.style.maxHeight = Math.max(startH + (e.touches[0].clientY - startY), 120) + 'px';
-    }
-    e.preventDefault();
-  }, {passive:false});
-
-  document.addEventListener('touchend', () => {
-    dragging = false;
-    if(handle) handle.classList.remove('dragging');
-    handle = null; panel = null;
-  });
-})();
 
 async function init(){
   buildFeedTabs();
   await Promise.all([loadAllFeeds(),runAllAI(),buildESI(),loadEONET(),loadERA5(),loadSST(),loadWJC(),loadReliefWeb(),loadTrends(),loadCO2()]);
 }
 init();
+
+// ── SMART TOOLTIP POSITIONING ────────────────────────────────────────────────
+// Runs on every info-btn mouseenter. Positions tooltip with fixed coords so it
+// always floats above all panels regardless of stacking context.
+document.querySelectorAll('.info-wrap').forEach(wrap => {
+  const btn     = wrap.querySelector('.info-btn');
+  const tooltip = wrap.querySelector('.info-tooltip');
+  if(!btn || !tooltip) return;
+
+  btn.addEventListener('mouseenter', () => {
+    // Temporarily show off-screen to measure real dimensions
+    tooltip.style.visibility = 'hidden';
+    tooltip.style.display    = 'block';
+    tooltip.style.top        = '-9999px';
+    tooltip.style.left       = '-9999px';
+
+    const btnR  = btn.getBoundingClientRect();
+    const tipW  = tooltip.offsetWidth;
+    const tipH  = tooltip.offsetHeight;
+    const vw    = window.innerWidth;
+    const vh    = window.innerHeight;
+    const PAD   = 8; // px gap from viewport edges
+
+    // Prefer opening below the button; if not enough room open above
+    let top = btnR.bottom + 4;
+    if(top + tipH > vh - PAD) top = btnR.top - tipH - 4;
+    top = Math.max(PAD, top);
+
+    // Prefer aligning right edge of tooltip to right edge of button;
+    // if that pushes it off-screen left, align left edges instead;
+    // always clamp so it never overflows right edge
+    let left = btnR.right - tipW;
+    if(left < PAD) left = btnR.left;
+    left = Math.min(left, vw - tipW - PAD);
+    left = Math.max(PAD, left);
+
+    tooltip.style.top        = top  + 'px';
+    tooltip.style.left       = left + 'px';
+    tooltip.style.visibility = '';
+  });
+
+  btn.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+});
+
 </script>
-<div id="info-modal-overlay" onclick="closeInfoModal(event)">
-  <div id="info-modal">
-    <button id="info-modal-close" onclick="closeInfoModal()">✕</button>
-    <div id="info-modal-body"></div>
-  </div>
-</div>
 </body>
 </html>
