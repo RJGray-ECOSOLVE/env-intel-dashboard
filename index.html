@@ -669,7 +669,7 @@ const AI_TOPICS={
 function renderAI(txt,color){
   if(!txt)return`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
   if(txt==="NO_PROXY")return`<div class="ainok" style="padding:12px;"><p style="color:${color};font-weight:700;margin-bottom:8px;">⚙ AI Proxy not configured</p><p style="margin-bottom:6px;">Set <code style="color:var(--blue)">AI_PROXY_URL</code> at the top of this file to your Worker URL ending in <code style="color:var(--blue)">/ai</code>.</p></div>`;
-  if(txt.includes("file://"))return`<div class="ainok" style="padding:12px;"><p style="color:${color};font-weight:700;margin-bottom:8px;">⚠ Browser Security Block</p><p style="margin-bottom:6px;">Browsers block requests from <code style="color:var(--blue)">file://</code> pages to external URLs. Serve the dashboard from a local server instead:</p><p style="font-size:.68rem;color:var(--blue);margin:4px 0;font-family:monospace;">python3 -m http.server 8080</p><p style="font-size:.65rem;color:var(--dim);">Then open: <a href="http://localhost:8080" target="_blank" style="color:var(--green)">http://localhost:8080</a></p></div>`;
+
   if(txt.startsWith("ERR:"))return`<div class="aierr">⚠ ${txt}</div>`;
   return`<div class="aic">${txt.split("\n").map(l=>l.trim()).filter(Boolean).map(ln=>{ln=ln.replace(/^[\d]+\.\s*/,"").replace(/^[-•*]\s*/,"");if(!ln)return"";return`<div class="aib">${ln.replace(/\*\*([^*]+)\*\*/g,`<strong style="color:${color}">$1</strong>`)}</div>`;}).join("")}</div>`;
 }
@@ -698,7 +698,7 @@ async function fetchAI(prompt){
   } catch(e) {
     // "Failed to fetch" almost always means wrong URL or Worker not deployed
     if(e.message.includes("Failed to fetch") || e.message.includes("NetworkError")){
-      return "ERR:Cannot reach Worker. Most likely cause: browsers block requests from file:// pages. Serve the dashboard via a local server (see AI panel for instructions), or host it online.";
+      return "ERR:Cannot reach Worker — check that AI_PROXY_URL is correct and wrangler deploy has been run";
     }
     if(e.message.includes("timeout") || e.message.includes("signal")){
       return "ERR:Request timed out — Worker may be starting cold, try refreshing";
