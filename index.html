@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ENVIRONMENTAL INTELLIGENCE DASHBOARD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #080d08;  --bg-p:   #0c1410;  --bg-c:  #101810;
+  --bg-h:     #141f14;  --brd:    #1a2a1a;  --brd-h: #263826;
+  --txt:      #c8e6c9;  --txt2:   #7aaa7c;  --dim:   #46634a;
+  --green:    #39d353;  --amber:  #e8c547;  --red:   #ff3355;
+  --orange:   #ff6b35;  --blue:   #a8dadc;  --purple:#c77dff;
+  --mono: 'JetBrains Mono','Courier New',monospace;
+  --sans: 'IBM Plex Sans',system-ui,sans-serif;
+  --hdr-h: 42px;
+  --map-h: 44vh;   /* map takes ~44% of viewport height */
+  --panel-h: 280px; /* uniform panel card height */
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;} /* lock viewport — only #panels-wrap scrolls */
+body{background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:13px;}
+
+/* ── SHELL: full-viewport flex column ── */
+#shell{display:flex;flex-direction:column;height:100vh;overflow:hidden;background:#050a05;}
+
+/* ── HEADER ── */
+#hdr{flex:0 0 var(--hdr-h);display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px;background:var(--bg);border-bottom:1px solid var(--green);
+  box-shadow:0 0 18px rgba(57,211,83,.1);z-index:10;}
+.hl{display:flex;align-items:center;gap:9px;}
+.hl-logo{font-size:1.2rem;}
+.hl-t{font-size:.79rem;font-weight:700;color:var(--green);letter-spacing:.1em;display:block;}
+.hl-s{font-size:.58rem;color:var(--dim);letter-spacing:.12em;display:block;margin-top:1px;}
+.hr{display:flex;align-items:center;gap:12px;}
+.hclock{font-size:.68rem;color:var(--txt2);}
+.live{font-size:.65rem;color:var(--green);letter-spacing:.1em;animation:pulse 1.8s ease-in-out infinite;}
+
+/* ── MAP — fixed height, never scrolls away ── */
+#map-wrap{flex:0 0 var(--map-h);display:flex;flex-direction:column;
+  background:var(--bg);border-bottom:2px solid var(--brd-h);}
+.map-tabs{display:flex;flex-shrink:0;background:var(--bg);border-bottom:1px solid var(--brd);height:32px;}
+.mtab{font-family:var(--mono);font-size:.66rem;font-weight:700;letter-spacing:.08em;
+  color:var(--dim);background:transparent;border:none;border-bottom:2px solid transparent;
+  padding:0 15px;cursor:pointer;transition:color .12s,background .12s;white-space:nowrap;}
+.mtab:hover{color:var(--txt2);background:var(--bg-h);}
+.mtab.active{background:var(--bg-c);}
+.map-frames{flex:1;position:relative;overflow:hidden;}
+.mframe{display:none;position:absolute;inset:0;}
+.mframe.active{display:block;}
+.mframe iframe{width:100%;height:100%;border:none;display:block;}
+.mext{position:absolute;bottom:10px;right:10px;z-index:10;
+  font-family:var(--mono);font-size:.59rem;font-weight:700;letter-spacing:.1em;
+  text-decoration:none;border-radius:2px;padding:3px 8px;
+  background:rgba(8,13,8,.9);border:1px solid;}
+
+/* ── PANELS WRAP — THIS is the only scrolling region ── */
+#panels-wrap{
+  flex:1;          /* takes all remaining height below map */
+  overflow-y:auto; /* vertical scroll for the panel grid */
+  overflow-x:hidden;
+  background:#050a05;
+  padding:6px 6px 20px;
+}
+
+/* ── 4-column grid ── */
+#pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+
+/* ── PANEL CARD — uniform height, content scrolls inside ── */
+.panel{background:var(--bg-p);border:1px solid var(--brd);border-radius:3px;
+  display:flex;flex-direction:column;overflow:hidden;
+  min-min-height:var(--panel-h);}
+.panel.tall{min-height:calc(var(--panel-h) + 100px);}
+.panel.wide{grid-column:span 2;}
+
+/* Responsive: fewer columns on smaller screens */
+@media(max-width:1200px){#pgrid{grid-template-columns:repeat(3,1fr);}.panel.wide{grid-column:span 2;}}
+@media(max-width:860px){#pgrid{grid-template-columns:repeat(2,1fr);}.panel.wide{grid-column:span 2;}:root{--map-h:38vh;}}
+@media(max-width:560px) {#pgrid{grid-template-columns:1fr;}.panel.wide{grid-column:span 1;}:root{--map-h:32vh;}.hl-s{display:none;}}
+
+.ph{display:flex;justify-content:space-between;align-items:center;
+  padding:6px 10px;gap:6px;background:var(--bg);border-bottom:1px solid var(--brd);flex-shrink:0;}
+.phl{font-size:.59rem;font-weight:700;letter-spacing:.1em;color:var(--dim);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.phr{display:flex;align-items:center;gap:5px;flex-shrink:0;}
+.pnote{font-size:.59rem;color:var(--amber);background:rgba(232,197,71,.07);
+  border-bottom:1px solid rgba(232,197,71,.18);padding:3px 10px;flex-shrink:0;line-height:1.4;}
+.pb{overflow-y:auto;flex:1;min-height:0;}
+
+/* ── THEMED SPINNER ────────────────────────────────────────────────────── */
+@keyframes spin-ring{to{transform:rotate(360deg)}}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.25;transform:scale(.45)}}
+.spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;padding:28px 12px;height:100%;}
+.spinner-ring{width:30px;height:30px;border-radius:50%;
+  border:2px solid var(--brd-h);border-top-color:var(--green);
+  animation:spin-ring .75s linear infinite;
+  box-shadow:0 0 14px rgba(57,211,83,.2);}
+.spinner-dots{display:flex;gap:5px;}
+.spinner-dots span{width:4px;height:4px;border-radius:50%;background:var(--green);
+  animation:pulse-dot 1.1s ease-in-out infinite;}
+.spinner-dots span:nth-child(2){animation-delay:.18s;}
+.spinner-dots span:nth-child(3){animation-delay:.36s;}
+.spinner-lbl{font-size:.57rem;color:var(--dim);letter-spacing:.12em;}
+
+/* ── INFO BUTTON + TOOLTIP ─────────────────────────────────────────────── */
+.info-wrap{position:relative;flex-shrink:0;}
+.info-btn{font-family:var(--mono);font-size:.58rem;font-weight:700;
+  width:15px;height:15px;border-radius:50%;border:1px solid var(--brd-h);
+  background:transparent;color:var(--dim);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:border-color .12s,color .12s;line-height:1;padding:0;}
+.info-btn:hover,.info-wrap:hover .info-btn{border-color:var(--blue);color:var(--blue);}
+.info-tooltip{display:none;position:absolute;top:22px;right:0;z-index:600;
+  background:#070f07;border:1px solid var(--brd-h);border-radius:3px;
+  padding:9px 11px;width:250px;font-size:.61rem;line-height:1.65;
+  color:var(--txt2);box-shadow:0 6px 28px rgba(0,0,0,.7);}
+.info-tooltip.left{right:auto;left:0;}
+.info-wrap:hover .info-tooltip{display:block;}
+.info-tooltip strong{color:var(--green);font-weight:700;display:block;
+  margin-bottom:5px;font-size:.62rem;letter-spacing:.07em;
+  border-bottom:1px solid var(--brd);padding-bottom:4px;}
+.info-tooltip .src{display:flex;gap:5px;align-items:baseline;margin-top:4px;}
+.info-tooltip .src-tag{font-size:.52rem;font-weight:700;color:#050e05;
+  background:var(--green);padding:1px 4px;border-radius:1px;flex-shrink:0;letter-spacing:.06em;}
+
+/* ── RESIZE BAR ────────────────────────────────────────────────────────── */
+#resize-bar{display:flex;align-items:center;gap:8px;padding:3px 10px;
+  background:var(--bg);border-bottom:1px solid var(--brd);flex-shrink:0;height:26px;}
+#resize-bar label{font-size:.56rem;color:var(--dim);letter-spacing:.09em;white-space:nowrap;}
+#resize-bar input[type=range]{width:80px;height:3px;accent-color:var(--green);cursor:pointer;flex-shrink:0;}
+#resize-bar span{font-size:.58rem;color:var(--txt2);min-width:34px;}
+.resize-sep{width:1px;height:11px;background:var(--brd-h);margin:0 1px;}
+
+/* ── THEMED SPINNER ── */
+@keyframes spin-ring{to{transform:rotate(360deg)}}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.5)}}
+.spinner{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:28px 12px;min-height:80px;}
+.spinner-ring{width:32px;height:32px;border-radius:50%;border:2px solid var(--brd-h);border-top-color:var(--green);animation:spin-ring .8s linear infinite;box-shadow:0 0 12px rgba(57,211,83,.25);}
+.spinner-dots{display:flex;gap:5px;}
+.spinner-dots span{width:4px;height:4px;border-radius:50%;background:var(--green);animation:pulse-dot 1.2s ease-in-out infinite;}
+.spinner-dots span:nth-child(2){animation-delay:.2s;}
+.spinner-dots span:nth-child(3){animation-delay:.4s;}
+.spinner-lbl{font-size:.62rem;color:var(--dim);letter-spacing:.1em;}
+
+/* ── INFO BUTTON & TOOLTIP ── */
+.info-btn{font-family:var(--mono);font-size:.6rem;font-weight:700;width:16px;height:16px;
+  border-radius:50%;border:1px solid var(--brd-h);background:transparent;color:var(--dim);
+  cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  transition:border-color .12s,color .12s;line-height:1;padding:0;}
+.info-btn:hover{border-color:var(--blue);color:var(--blue);}
+.info-tooltip{display:none;position:absolute;top:28px;right:6px;z-index:500;
+  background:#0a1a0a;border:1px solid var(--brd-h);border-radius:3px;
+  padding:9px 11px;width:240px;font-size:.62rem;line-height:1.6;color:var(--txt2);
+  box-shadow:0 4px 24px rgba(0,0,0,.6);}
+.info-tooltip.left{right:auto;left:6px;}
+.info-tooltip strong{color:var(--green);font-weight:700;display:block;margin-bottom:4px;font-size:.63rem;letter-spacing:.06em;}
+.info-tooltip .src{display:flex;gap:5px;align-items:baseline;margin-top:3px;}
+.info-tooltip .src-tag{font-size:.53rem;font-weight:700;color:var(--green);background:rgba(57,211,83,.1);padding:1px 4px;border-radius:1px;flex-shrink:0;}
+.info-wrap{position:relative;flex-shrink:0;}
+.info-wrap:hover .info-tooltip,.info-btn:focus+.info-tooltip{display:block;}
+
+/* ── RESIZE CONTROLS ── */
+#resize-bar{display:flex;align-items:center;gap:10px;padding:4px 10px;
+  background:var(--bg);border-bottom:1px solid var(--brd);flex-shrink:0;height:28px;}
+#resize-bar label{font-size:.58rem;color:var(--dim);letter-spacing:.08em;white-space:nowrap;}
+#resize-bar input[type=range]{flex:1;max-width:90px;height:3px;accent-color:var(--green);cursor:pointer;}
+#resize-bar span{font-size:.58rem;color:var(--txt2);min-width:28px;}
+.resize-sep{width:1px;height:12px;background:var(--brd-h);margin:0 2px;}
+
+/* TAB SYSTEM */
+.tbar{display:flex;flex-shrink:0;background:var(--bg);border-bottom:1px solid var(--brd);
+  overflow-x:auto;height:28px;}
+.tbar::-webkit-scrollbar{height:0;}
+.tbtn{font-family:var(--mono);font-size:.58rem;font-weight:600;letter-spacing:.06em;
+  color:var(--dim);background:transparent;border:none;border-bottom:2px solid transparent;
+  padding:0 9px;cursor:pointer;white-space:nowrap;height:100%;
+  transition:color .12s,background .12s;}
+.tbtn:hover{color:var(--txt2);background:var(--bg-h);}
+.tbtn.active{background:var(--bg-c);}
+.tpanels{flex:1;position:relative;overflow:hidden;min-height:0;}
+.tpanel{display:none;position:absolute;inset:0;overflow-y:auto;}
+.tpanel.active{display:block;}
+
+/* FEED ITEMS */
+.fmeta{display:flex;justify-content:space-between;align-items:center;
+  padding:4px 9px;background:var(--bg-c);border-bottom:1px solid var(--brd);flex-shrink:0;}
+.fi{padding:7px 9px;border-bottom:1px solid var(--brd);transition:background .1s;}
+.fi:hover{background:var(--bg-h);}
+.fttl{display:block;font-family:var(--sans);font-size:.78rem;font-weight:600;
+  line-height:1.33;margin-bottom:3px;text-decoration:none;}
+.fttl:hover{text-decoration:underline;}
+.fdesc{font-family:var(--mono);font-size:.67rem;color:var(--txt2);line-height:1.4;margin:0 0 3px;}
+.fdate{font-size:.59rem;color:var(--dim);}
+.fupd{font-size:.59rem;color:var(--dim);letter-spacing:.05em;}
+
+/* ALERT / CLIMATE ITEMS */
+.ai{padding:7px 9px;border-bottom:1px solid var(--brd);transition:background .1s;}
+.ai:hover{background:var(--bg-h);}
+.bdg{font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:2px;border:1px solid var(--brd-h);color:var(--txt2);}
+.adt{font-size:.59rem;color:var(--dim);}
+.cli{padding:6px 9px;border-bottom:1px solid var(--brd);}
+.cln{font-family:var(--sans);font-size:.74rem;font-weight:500;}
+
+/* AI BRIEFING */
+.aic{padding:4px 9px;}
+.aib{padding:5px 0;border-bottom:1px solid var(--brd);font-size:.71rem;line-height:1.55;}
+.aib:last-child{border-bottom:none;}
+.ainok{padding:12px;font-size:.71rem;line-height:1.7;}
+.ainok a{color:var(--green);}
+.aierr{padding:10px;font-size:.69rem;color:var(--orange);}
+
+/* AI DEDUCTION */
+.drow{display:flex;gap:5px;padding:7px 8px;border-bottom:1px solid var(--brd);flex-shrink:0;}
+.dinp{flex:1;background:var(--bg-c);border:1px solid var(--brd-h);color:var(--txt);
+  font-family:var(--mono);font-size:.68rem;padding:5px 7px;border-radius:2px;outline:none;}
+.dinp:focus{border-color:var(--green);}
+.dask{font-family:var(--mono);font-size:.66rem;font-weight:700;
+  background:rgba(57,211,83,.1);border:1px solid var(--green);
+  color:var(--green);padding:5px 9px;border-radius:2px;cursor:pointer;}
+.dres{padding:9px;font-size:.71rem;line-height:1.6;overflow-y:auto;flex:1;}
+
+/* SPECIES */
+.spi{padding:7px 9px;border-bottom:1px solid var(--brd);}
+.spn{font-size:.73rem;font-weight:700;}
+.sps{font-size:.59rem;color:var(--dim);font-style:italic;margin-top:1px;}
+.iucn{font-size:.57rem;font-weight:700;padding:1px 4px;border-radius:2px;}
+
+/* CO2 */
+.co2w{display:flex;align-items:center;justify-content:space-around;padding:12px 8px;}
+.co2b{text-align:center;}
+.co2v{font-size:1.4rem;font-weight:700;color:var(--blue);}
+.co2d{font-size:.95rem;font-weight:700;}
+.co2l{font-size:.58rem;color:var(--dim);margin-top:2px;}
+.co2sep{width:1px;height:30px;background:var(--brd);}
+
+/* SOURCES */
+.srcg{display:flex;flex-wrap:wrap;gap:4px;padding:7px 8px;}
+.sc a{display:flex;align-items:center;gap:4px;padding:3px 7px;
+  background:var(--bg-c);border:1px solid var(--brd-h);border-radius:2px;
+  text-decoration:none;transition:border-color .15s;}
+.sc a:hover{border-color:var(--green);background:var(--bg-h);}
+.stag{font-size:.53rem;font-weight:700;color:var(--green);letter-spacing:.1em;
+  background:rgba(57,211,83,.1);padding:1px 3px;border-radius:1px;}
+.snm{font-size:.6rem;color:var(--txt2);}
+
+/* BUTTONS */
+.rbtn{font-family:var(--mono);font-size:.67rem;font-weight:700;
+  background:transparent;border:1px solid;border-radius:2px;
+  padding:2px 5px;cursor:pointer;flex-shrink:0;transition:opacity .15s;}
+.rbtn:hover{opacity:.65;}
+.loading{padding:14px 10px;font-size:.69rem;color:var(--dim);}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;color:var(--dim);font-size:.69rem;padding:24px 12px;text-align:center;min-height:80px;}
+.empty a{color:var(--green);}
+
+/* SCROLLBARS */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--brd-h);border-radius:2px;}
+::-webkit-scrollbar-thumb:hover{background:var(--green);}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);}
+
+/* RESPONSIVE */
+@media(max-width:1200px){
+  #pgrid{grid-template-columns:repeat(3,1fr);}
+  .panel.wide{grid-column:span 2;}
+}
+@media(max-width:860px){
+  :root{--map-h:38vh;}
+  #pgrid{grid-template-columns:repeat(2,1fr);}
+  .panel.wide{grid-column:span 2;}
+}
+@media(max-width:560px){
+  :root{--map-h:32vh;}
+  #pgrid{grid-template-columns:1fr;}
+  .panel.wide{grid-column:span 1;}
+  .hl-s{display:none;}
+}
+</style>
+</head>
+<body>
+
+<div id="shell">
+<!-- HEADER -->
+<div id="hdr">
+  <div class="hl">
+    <span class="hl-logo">🌍</span>
+    <div>
+      <span class="hl-t">ENVIRONMENTAL INTELLIGENCE DASHBOARD</span>
+      <span class="hl-s">ILLICIT ACTIVITY · FIRE ALERTS · CLIMATE ANOMALIES · AI INTELLIGENCE</span>
+    </div>
+  </div>
+  <div class="hr">
+    <span class="hclock" id="live-clock">—</span>
+    <span class="live">● LIVE</span>
+  </div>
+</div>
+
+<!-- MAP (sticky below header) -->
+<div id="map-wrap">
+  <div class="map-tabs" id="map-tab-bar">
+    <button class="mtab active" data-mi="1" data-color="#39d353" style="border-bottom:2px solid #39d353;color:#39d353;">🌳 TERRESTRIAL</button>
+    <button class="mtab" data-mi="2" data-color="#a8dadc">🌊 MARINE</button>
+    <button class="mtab" data-mi="3" data-color="#c77dff">🔍 CYBER / IWT</button>
+  </div>
+  <div class="map-frames">
+    <div id="mf-1" class="mframe active">
+      <iframe src="https://www.globalforestwatch.org/map/" allowfullscreen loading="lazy"></iframe>
+      <a href="https://www.globalforestwatch.org/map/" target="_blank" class="mext" style="color:#39d353;border-color:#39d353;">OPEN FULL MAP ↗</a>
+    </div>
+    <div id="mf-2" class="mframe">
+      <iframe src="https://globalfishingwatch.org/map/" allowfullscreen loading="lazy"></iframe>
+      <a href="https://globalfishingwatch.org/map/" target="_blank" class="mext" style="color:#a8dadc;border-color:#a8dadc;">OPEN FULL MAP ↗</a>
+    </div>
+    <div id="mf-3" class="mframe">
+      <iframe src="https://www.ecosolve.eco/dashboard" allowfullscreen loading="lazy"></iframe>
+      <a href="https://www.ecosolve.eco/dashboard" target="_blank" class="mext" style="color:#c77dff;border-color:#c77dff;">OPEN FULL MAP ↗</a>
+    </div>
+  </div>
+</div>
+
+<!-- PANELS — scroll with page, 3-column grid -->
+<div id="panels-wrap">
+
+<div id="resize-bar">
+  <label>W</label>
+  <input type="range" id="rng-w" min="180" max="700" value="280" step="10" oninput="resizePanels()">
+  <span id="rng-w-val">280px</span>
+  <div class="resize-sep"></div>
+  <label>H</label>
+  <input type="range" id="rng-h" min="160" max="700" value="280" step="10" oninput="resizePanels()">
+  <span id="rng-h-val">280px</span>
+  <div class="resize-sep"></div>
+  <button onclick="resetPanelSize()" style="font-family:var(--mono);font-size:.57rem;font-weight:700;background:transparent;border:1px solid var(--brd-h);color:var(--dim);padding:1px 8px;border-radius:2px;cursor:pointer;letter-spacing:.06em;">↺ RESET</button>
+</div>
+
+<div id="pgrid">
+
+  <!-- NEWS FEEDS: wide 2-col, tall -->
+  <div class="panel wide tall">
+    <div class="ph">
+      <span class="phl">📰 INTELLIGENCE NEWS FEEDS</span>
+      <div class="phr">
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip left"><strong>INTELLIGENCE NEWS FEEDS</strong>
+            <div class="src"><span class="src-tag">MONGABAY</span>news.mongabay.com — wildlife crime, logging, deforestation, mining, indigenous</div>
+            <div class="src"><span class="src-tag">GRIST</span>grist.org — climate &amp; environmental policy</div>
+            <div class="src"><span class="src-tag">GUARDIAN</span>theguardian.com/environment — global environment</div>
+            <div class="src"><span class="src-tag">PROXY</span>corsproxy.io with allorigins.win fallback · RSS XML parsed client-side</div></div></div>
+      </div>
+    </div>
+    <div class="tbar" id="feed-tab-bar"></div>
+    <div class="tpanels" id="feed-panels"></div>
+  </div>
+
+  <!-- AI BRIEFING: tall -->
+  <div class="panel tall">
+    <div class="ph">
+      <span class="phl">🤖 AI INTEL — GROQ / LLAMA 3.3</span>
+      <div class="phr">
+        <span class="fupd" id="ai-upd">—</span>
+        <button class="rbtn" id="ai-refresh-btn" onclick="runAllAI()" style="color:#39d353;border-color:#39d353;">↻</button>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>AI INTEL BRIEFINGS</strong>
+            <div class="src"><span class="src-tag">MODEL</span>Llama 3.3-70b-versatile (Meta) via Groq inference API</div>
+            <div class="src"><span class="src-tag">API</span>api.groq.com/openai/v1/chat/completions</div>
+            <div class="src"><span class="src-tag">TABS</span>Threat · Hotspots · Species · Policy — date-aware prompts</div>
+            <div class="src"><span class="src-tag">KEY</span>Requires free Groq API key at console.groq.com/keys</div></div></div>
+      </div>
+    </div>
+    <div class="tbar" id="ai-tab-bar">
+      <button class="tbtn active" data-ai="threat" data-color="#ff6b35" style="border-bottom:2px solid #ff6b35;color:#ff6b35;">⚠ THREAT</button>
+      <button class="tbtn" data-ai="hotspot" data-color="#e8c547">📍 HOTSPOTS</button>
+      <button class="tbtn" data-ai="species" data-color="#c77dff">🦏 SPECIES</button>
+      <button class="tbtn" data-ai="policy" data-color="#74c69d">📜 POLICY</button>
+    </div>
+    <div class="tpanels" id="ai-panels">
+      <div class="tpanel active" id="ai-panel-threat"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+      <div class="tpanel" id="ai-panel-hotspot"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+      <div class="tpanel" id="ai-panel-species"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+      <div class="tpanel" id="ai-panel-policy"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+    </div>
+  </div>
+
+  <!-- ESI: wide 2-col, tall -->
+  <div class="panel wide tall" id="esi-panel" style="flex-direction:row;overflow:hidden;">
+    <div id="esi-list" style="width:100%;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;transition:width .25s ease;">
+      <div class="ph" style="flex-shrink:0;">
+        <span class="phl">🌍 ENVIRONMENTAL STABILITY INDEX</span>
+        <div class="phr">
+          <span class="fupd" id="esi-upd">—</span>
+          <button class="rbtn" onclick="buildESI()" style="color:#39d353;border-color:#39d353;">↻</button>
+          <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>ENVIRONMENTAL STABILITY INDEX</strong>
+            <div class="src"><span class="src-tag">WORLD BANK</span>Forest area % (AG.LND.FRST.ZS) — weight 30%</div>
+            <div class="src"><span class="src-tag">WORLD BANK</span>Protected areas % (ER.PTD.TOTL.ZS) — weight 20%</div>
+            <div class="src"><span class="src-tag">RELIEFWEB</span>Disaster events past 12 months — weight 20%</div>
+            <div class="src"><span class="src-tag">WORLD BANK</span>CO₂ t/capita (EN.ATM.CO2E.PC) — weight 15%</div>
+            <div class="src"><span class="src-tag">WORLD BANK</span>PM2.5 µg/m³ (EN.ATM.PM25.MC.M3) — weight 15%</div>
+            <div class="src"><span class="src-tag">NOTE</span>Missing values default to neutral (50). WB data ~1–2 yr lag.</div></div></div>
+        </div>
+      </div>
+      <div class="pnote" style="flex-shrink:0;">Click a country to expand full intel breakdown</div>
+      <div class="pb" id="esi-out"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+    </div>
+    <div id="esi-detail" style="width:0;flex-shrink:0;overflow:hidden;border-left:1px solid var(--brd);background:var(--bg-c);display:flex;flex-direction:column;transition:width .25s ease;">
+      <div class="ph" style="flex-shrink:0;padding:6px 8px;">
+        <div style="display:flex;align-items:center;gap:7px;min-width:0;">
+          <span id="esi-d-flag" style="font-size:1.1rem;"></span>
+          <div style="min-width:0;">
+            <div id="esi-d-name" style="font-size:.77rem;font-weight:700;color:var(--green);letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">—</div>
+            <div id="esi-d-sub" style="font-size:.58rem;color:var(--dim);">Environmental Intelligence</div>
+          </div>
+        </div>
+        <button onclick="closeESIDetail()" style="font-family:var(--mono);font-size:.7rem;font-weight:700;background:transparent;border:1px solid var(--brd-h);color:var(--dim);padding:2px 6px;border-radius:2px;cursor:pointer;flex-shrink:0;">✕</button>
+      </div>
+      <div class="pb" id="esi-detail-body" style="padding:0;"></div>
+    </div>
+  </div>
+
+  <!-- EONET -->
+  <div class="panel">
+    <div class="ph">
+      <span class="phl">🔥 NASA EONET — NATURAL EVENTS</span>
+      <div class="phr">
+        <span class="fupd" id="eonet-upd">—</span>
+        <button class="rbtn" onclick="loadEONET()" style="color:#ff6b35;border-color:#ff6b35;">↻</button>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip left"><strong>NASA EONET — NATURAL EVENTS</strong>
+            <div class="src"><span class="src-tag">SOURCE</span>eonet.gsfc.nasa.gov/api/v3/events — free, no key required</div>
+            <div class="src"><span class="src-tag">EVENTS</span>Wildfires, Volcanoes, Floods, Severe Storms, Droughts, Dust &amp; Haze, Landslides</div>
+            <div class="src"><span class="src-tag">FILTER</span>Wildfires limited to 48 hr window; all others 7 days · up to 80 open events</div>
+            <div class="src"><span class="src-tag">NOTE</span>Direct fetch — CORS-enabled NASA API, no proxy needed</div></div></div>
+      </div>
+    </div>
+    <div class="pnote">Wildfires (48hr) · Volcanoes · Floods · Storms · 7 days</div>
+    <div class="pb" id="eonet-out"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+  </div>
+
+  <!-- ERA5 -->
+  <div class="panel">
+    <div class="ph">
+      <span class="phl">🌡 ERA5 — TEMP ANOMALY vs 1 YR AGO</span>
+      <div class="phr">
+        <span class="fupd" id="era5-upd">—</span>
+        <button class="rbtn" onclick="loadERA5()" style="color:#a8dadc;border-color:#a8dadc;">↻</button>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>ERA5 TEMPERATURE ANOMALY</strong>
+            <div class="src"><span class="src-tag">SOURCE</span>archive-api.open-meteo.com — ERA5 reanalysis, free, no key</div>
+            <div class="src"><span class="src-tag">METHOD</span>14-day mean temp (now) minus same 14 days exactly 1 year prior</div>
+            <div class="src"><span class="src-tag">VARS</span>temperature_2m_max + temperature_2m_min averaged per region</div>
+            <div class="src"><span class="src-tag">ZONES</span>Amazon · Congo · Siberia · Arctic · SE Asia · Sahel · Australia · Greenland</div></div></div>
+      </div>
+    </div>
+    <div class="pnote">Open-Meteo ERA5 · 8 ecological zones · ▲▼ vs prior year</div>
+    <div class="pb" id="era5-out"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+  </div>
+
+  <!-- SST -->
+  <div class="panel">
+    <div class="ph">
+      <span class="phl">🌊 SEA SURFACE TEMP ANOMALY</span>
+      <div class="phr">
+        <span class="fupd" id="sst-upd">—</span>
+        <button class="rbtn" onclick="loadSST()" style="color:#a8dadc;border-color:#a8dadc;">↻</button>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip left"><strong>SEA SURFACE TEMPERATURE ANOMALY</strong>
+            <div class="src"><span class="src-tag">SOURCE</span>marine-api.open-meteo.com — free, no key required</div>
+            <div class="src"><span class="src-tag">VAR</span>sea_surface_temperature_max — 3 days back to avoid data gaps</div>
+            <div class="src"><span class="src-tag">METHOD</span>Current SST minus same date prior year (anomaly)</div>
+            <div class="src"><span class="src-tag">RISK</span>&gt;+2°C anomaly signals coral bleaching / ecosystem stress</div>
+            <div class="src"><span class="src-tag">REGIONS</span>Great Barrier Reef · Caribbean · Gulf of Mexico · Coral Triangle · Arctic · Indian Ocean · Mediterranean · Amazon Plume</div></div></div>
+      </div>
+    </div>
+    <div class="pnote">Open-Meteo Marine · 8 ocean regions · ▲▼ vs prior year</div>
+    <div class="pb" id="sst-out"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+  </div>
+
+  <!-- WJC -->
+  <div class="panel">
+    <div class="ph">
+      <span class="phl">🚨 WILDLIFE JUSTICE COMMISSION</span>
+      <div class="phr">
+        <span class="fupd" id="wjc-upd">—</span>
+        <button class="rbtn" onclick="loadWJC()" style="color:#ff2244;border-color:#ff2244;">↻</button>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>WILDLIFE JUSTICE COMMISSION</strong>
+            <div class="src"><span class="src-tag">PRIMARY</span>wildlifejustice.org/feed/ — WJC press releases &amp; enforcement operations</div>
+            <div class="src"><span class="src-tag">FALLBACK</span>news.mongabay.com wildlife-crime feed if WJC RSS unavailable</div>
+            <div class="src"><span class="src-tag">DELIVERY</span>RSS via CORS proxy · up to 15 items</div></div></div>
+      </div>
+    </div>
+    <div class="pnote">Live enforcement actions &amp; arrests · WJC RSS</div>
+    <div class="pb" id="wjc-out"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+  </div>
+
+  <!-- RELIEFWEB -->
+  <div class="panel">
+    <div class="ph">
+      <span class="phl">🌪 RELIEFWEB — ENV DISASTERS</span>
+      <div class="phr">
+        <span class="fupd" id="relief-upd">—</span>
+        <button class="rbtn" onclick="loadReliefWeb()" style="color:#e8c547;border-color:#e8c547;">↻</button>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip left"><strong>RELIEFWEB DISASTER FEED</strong>
+            <div class="src"><span class="src-tag">SOURCE</span>api.reliefweb.int/v1/disasters — UN OCHA, free, CORS-enabled</div>
+            <div class="src"><span class="src-tag">FILTER</span>Flood, Drought, Wildfire, Cyclone / Tropical Storm events</div>
+            <div class="src"><span class="src-tag">SORT</span>Most recent first · up to 20 events</div>
+            <div class="src"><span class="src-tag">FALLBACK</span>reliefweb.int/disasters/rss.xml via CORS proxy if JSON fails</div></div></div>
+      </div>
+    </div>
+    <div class="pnote">Floods · Droughts · Wildfires · Cyclones · UN OCHA</div>
+    <div class="pb" id="relief-out"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+  </div>
+
+  <!-- KEYWORD TRENDS -->
+  <div class="panel">
+    <div class="ph">
+      <span class="phl">📈 KEYWORD SPIKE MONITOR</span>
+      <div class="phr">
+        <span class="fupd" id="trends-upd">—</span>
+        <button class="rbtn" onclick="loadTrends()" style="color:#c77dff;border-color:#c77dff;">↻</button>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>KEYWORD SPIKE MONITOR</strong>
+            <div class="src"><span class="src-tag">SOURCE</span>trends.google.com/trends/api/dailytrends — US daily trending searches</div>
+            <div class="src"><span class="src-tag">PROXY</span>Fetched via CORS proxy (unofficial endpoint — may occasionally fail)</div>
+            <div class="src"><span class="src-tag">METHOD</span>Checks each keyword against today's top trending queries for a match</div>
+            <div class="src"><span class="src-tag">TERMS</span>CITES · IUCN · climate change · deforestation · wildlife trafficking · illegal fishing · pangolin · rhino poaching</div></div></div>
+      </div>
+    </div>
+    <div class="pnote">Google Trends daily · ⚡ spike = term in today's top searches</div>
+    <div class="pb" id="trends-out"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+  </div>
+
+  <!-- CO2 + SOURCES -->
+  <div class="panel">
+    <div class="ph">
+      <span class="phl">📡 NOAA CO₂ · DATA SOURCES</span>
+      <div class="phr">
+        <button class="rbtn" onclick="loadCO2()" style="color:#a8dadc;border-color:#a8dadc;">↻</button>
+        <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip left"><strong>NOAA MAUNA LOA CO₂</strong>
+            <div class="src"><span class="src-tag">SOURCE</span>gml.noaa.gov — NOAA Global Monitoring Laboratory</div>
+            <div class="src"><span class="src-tag">FILE</span>co2_weekly_mlo.csv — Mauna Loa Observatory, Hawaii (since 1958)</div>
+            <div class="src"><span class="src-tag">DELIVERY</span>CORS proxy · latest weekly ppm value + year-on-year delta</div>
+            <div class="src"><span class="src-tag">UNIT</span>ppm — dry air mole fraction of CO₂</div></div></div>
+      </div>
+    </div>
+    <div id="co2-out" style="border-bottom:1px solid var(--brd);flex-shrink:0;"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
+    <div class="pb"><div class="srcg" id="sources-grid"></div></div>
+  </div>
+
+</div><!-- #pgrid -->
+</div><!-- #panels-wrap -->
+</div><!-- #shell -->
+
+<script>
+// ── AI PROXY CONFIGURATION ───────────────────────────────────────────────────
+// After deploying your Cloudflare Worker, paste the worker URL below.
+// Example: "https://env-dashboard-proxy.yourname.workers.dev/ai"
+// Leave as "" to show setup instructions in the AI panel.
+const AI_PROXY_URL = "https://env-dashboard-proxy.envmonitor.workers.dev/ai";  // <-- PASTE YOUR WORKER URL HERE
+
+// Optional: if you set ACCESS_TOKEN in worker.js, paste the same value here.
+const AI_ACCESS_TOKEN = "";  // leave blank if you didn't set one
+
+const tsNow = () => new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+const today = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+
+function cleanXML(s=""){
+  return s.replace(/<[^>]+>/g,"")
+    .replace(/&amp;/g,"&").replace(/&nbsp;/g," ").replace(/&#8217;/g,"\u2019")
+    .replace(/&#8216;/g,"\u2018").replace(/&#8220;/g,"\u201c").replace(/&#8221;/g,"\u201d")
+    .replace(/&#038;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").trim();
+}
+// CORS proxy chain — tried in order until one succeeds
+const PROXIES=[
+  u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u=>`https://thingproxy.freeboard.io/fetch/${u}`,
+  u=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+];
+
+function parseRSSText(txt, max) {
+  if(!txt || txt.trim().startsWith("<!")) return null;
+  // Try XML first
+  try {
+    const doc = new DOMParser().parseFromString(txt, "text/xml");
+    if(!doc.querySelector("parsererror")) {
+      const items = [...doc.querySelectorAll("item")].slice(0, max);
+      if(items.length) return items.map(i => {
+        const link = i.querySelector("link")?.textContent?.trim()
+          || i.querySelector("link")?.nextSibling?.textContent?.trim()
+          || i.querySelector("guid")?.textContent?.trim() || "#";
+        return {
+          title:   cleanXML(i.querySelector("title")?.textContent || ""),
+          link:    cleanXML(link),
+          desc:    cleanXML(i.querySelector("description")?.textContent || "").slice(0, 160),
+          pubDate: cleanXML(i.querySelector("pubDate")?.textContent || "")
+        };
+      }).filter(i => i.title);
+    }
+  } catch(e) {}
+  // Fallback: try HTML parser (some proxies wrap in HTML)
+  try {
+    const doc = new DOMParser().parseFromString(txt, "text/html");
+    const items = [...doc.querySelectorAll("item")].slice(0, max);
+    if(items.length) return items.map(i => ({
+      title:   cleanXML(i.querySelector("title")?.textContent || ""),
+      link:    cleanXML(i.querySelector("link")?.getAttribute("href") || i.querySelector("guid")?.textContent || "#"),
+      desc:    cleanXML(i.querySelector("description")?.textContent || "").slice(0, 160),
+      pubDate: cleanXML(i.querySelector("pubDate")?.textContent || "")
+    })).filter(i => i.title);
+  } catch(e) {}
+  return null;
+}
+
+async function fetchRSS(url, max=12) {
+  for(const mkP of PROXIES) {
+    try {
+      const r = await fetch(mkP(url), {
+        signal: AbortSignal.timeout(14000),
+        headers: {"X-Requested-With":"XMLHttpRequest","Accept":"application/rss+xml,application/xml,text/xml,*/*"}
+      });
+      if(!r.ok) continue;
+      const txt = await r.text();
+      const items = parseRSSText(txt, max);
+      if(items && items.length) return items;
+    } catch(e) { continue; }
+  }
+  return [];
+}
+
+function tickClock(){document.getElementById("live-clock").textContent=new Date().toISOString().replace("T"," ").slice(0,19)+" UTC";}
+setInterval(tickClock,1000);tickClock();
+
+document.getElementById("map-tab-bar").addEventListener("click",e=>{
+  const btn=e.target.closest(".mtab");if(!btn)return;
+  const col=btn.dataset.color||"#39d353";
+  document.querySelectorAll("#map-tab-bar .mtab").forEach(t=>{t.classList.remove("active");t.style.borderBottom="";t.style.color="";});
+  document.querySelectorAll(".mframe").forEach(f=>f.classList.remove("active"));
+  btn.classList.add("active");btn.style.borderBottom=`2px solid ${col}`;btn.style.color=col;
+  document.getElementById("mf-"+btn.dataset.mi).classList.add("active");
+});
+
+const FEEDS=[
+  {id:"wildlife_crime",label:"🦏 WILDLIFE CRIME",color:"#ff6b35",url:"https://news.mongabay.com/feed/?post_type=posts&topic=wildlife-crime"},
+  {id:"illegal_logging",label:"🌲 ILLEGAL LOGGING",color:"#f7c59f",url:"https://news.mongabay.com/feed/?post_type=posts&topic=illegal-logging"},
+  {id:"deforestation",label:"🔥 DEFORESTATION",color:"#e8c547",url:"https://news.mongabay.com/feed/?post_type=posts&topic=deforestation"},
+  {id:"mining",label:"⛏️ ILL. MINING",color:"#a8dadc",url:"https://news.mongabay.com/feed/?post_type=posts&topic=mining"},
+  {id:"indigenous",label:"✊ INDIGENOUS",color:"#c77dff",url:"https://news.mongabay.com/feed/?post_type=posts&topic=indigenous-peoples"},
+  {id:"grist",label:"🌿 GRIST",color:"#74c69d",url:"https://grist.org/feed/"},
+  {id:"guardian",label:"📰 GUARDIAN ENV",color:"#90be6d",url:"https://www.theguardian.com/environment/rss"},
+];
+function buildFeedTabs(){
+  const bar=document.getElementById("feed-tab-bar"),panels=document.getElementById("feed-panels");
+  FEEDS.forEach((f,i)=>{
+    const btn=document.createElement("button");
+    btn.className="tbtn"+(i===0?" active":"");btn.dataset.feed=f.id;btn.dataset.color=f.color;
+    if(i===0){btn.style.borderBottom=`2px solid ${f.color}`;btn.style.color=f.color;}
+    btn.textContent=f.label;bar.appendChild(btn);
+    const pnl=document.createElement("div");
+    pnl.className="tpanel"+(i===0?" active":"");pnl.id="feed-panel-"+f.id;
+    pnl.innerHTML=`<div class="fmeta"><span style="color:${f.color};font-size:.66rem;font-weight:700;">${f.label}</span><div style="display:flex;align-items:center;gap:5px;"><span class="fupd" id="upd-${f.id}">—</span><button class="rbtn" style="color:${f.color};border-color:${f.color};" onclick="loadFeed('${f.id}')">↻</button></div></div><div id="feed-content-${f.id}"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>`;
+    panels.appendChild(pnl);
+  });
+  bar.addEventListener("click",e=>{
+    const btn=e.target.closest(".tbtn");if(!btn||!btn.dataset.feed)return;
+    const col=btn.dataset.color||"#39d353";
+    document.querySelectorAll("#feed-tab-bar .tbtn").forEach(t=>{t.classList.remove("active");t.style.borderBottom="";t.style.color="";});
+    document.querySelectorAll("#feed-panels .tpanel").forEach(p=>p.classList.remove("active"));
+    btn.classList.add("active");btn.style.borderBottom=`2px solid ${col}`;btn.style.color=col;
+    document.getElementById("feed-panel-"+btn.dataset.feed).classList.add("active");
+  });
+}
+async function loadFeed(id){
+  const f=FEEDS.find(x=>x.id===id),box=document.getElementById("feed-content-"+id),upd=document.getElementById("upd-"+id);
+  box.innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
+  const items=await fetchRSS(f.url,15);upd.textContent="UPDATED "+tsNow();
+  box.innerHTML=items.length?items.map(i=>`<div class="fi"><a href="${i.link}" target="_blank" class="fttl" style="color:${f.color};">${i.title}</a>${i.desc?`<p class="fdesc">${i.desc}</p>`:""}<span class="fdate">${i.pubDate}</span></div>`).join(""):`<div class="empty"><p>⚠ Feed unavailable</p><a href="https://news.mongabay.com" target="_blank">Mongabay ↗</a></div>`;
+}
+async function loadAllFeeds(){for(const f of FEEDS)loadFeed(f.id);}
+
+const AI_TOPICS={
+  threat:{color:"#ff6b35",prompt:`Environmental crime intelligence analyst. Today: ${today}. Write 5 intelligence bullets on current global environmental crime threats. Format: **CATEGORY**: insight under 25 words. No preamble. Start with **WILDLIFE TRAFFICKING**:`},
+  hotspot:{color:"#e8c547",prompt:`Geospatial environmental crime analyst. Today: ${today}. List 5 highest-priority geographic hotspots for environmental crime. Format: **REGION**: crime type, why escalating, enforcement status. 25 words max each. No preamble.`},
+  species:{color:"#c77dff",prompt:`CITES/IUCN analyst. Today: ${today}. List 5 species under highest current trafficking pressure. Format: **Common Name** (Scientific) | IUCN status | primary threat | main route. 25 words max. No preamble.`},
+  policy:{color:"#74c69d",prompt:`Environmental policy analyst. Today: ${today}. List 5 recent policy developments affecting environmental crime enforcement. Format: **BODY**: summary under 25 words. No preamble.`},
+};
+function renderAI(txt,color){
+  if(!txt)return`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
+  if(txt==="NO_PROXY")return`<div class="ainok" style="padding:12px;"><p style="color:${color};font-weight:700;margin-bottom:8px;">⚙ AI Proxy not configured</p><p style="margin-bottom:6px;">Set <code style="color:var(--blue)">AI_PROXY_URL</code> at the top of this file to your Worker URL ending in <code style="color:var(--blue)">/ai</code>.</p></div>`;
+  if(txt.includes("file://"))return`<div class="ainok" style="padding:12px;"><p style="color:${color};font-weight:700;margin-bottom:8px;">⚠ Browser Security Block</p><p style="margin-bottom:6px;">Browsers block requests from <code style="color:var(--blue)">file://</code> pages to external URLs. Serve the dashboard from a local server instead:</p><p style="font-size:.68rem;color:var(--blue);margin:4px 0;font-family:monospace;">python3 -m http.server 8080</p><p style="font-size:.65rem;color:var(--dim);">Then open: <a href="http://localhost:8080" target="_blank" style="color:var(--green)">http://localhost:8080</a></p></div>`;
+  if(txt.startsWith("ERR:"))return`<div class="aierr">⚠ ${txt}</div>`;
+  return`<div class="aic">${txt.split("\n").map(l=>l.trim()).filter(Boolean).map(ln=>{ln=ln.replace(/^[\d]+\.\s*/,"").replace(/^[-•*]\s*/,"");if(!ln)return"";return`<div class="aib">${ln.replace(/\*\*([^*]+)\*\*/g,`<strong style="color:${color}">$1</strong>`)}</div>`;}).join("")}</div>`;
+}
+async function fetchAI(prompt){
+  if(!AI_PROXY_URL) return "NO_PROXY";
+  // Diagnose common setup mistakes up-front
+  if(AI_PROXY_URL && !AI_PROXY_URL.endsWith("/ai")){
+    return "ERR:AI_PROXY_URL must end with /ai — e.g. https://your-worker.workers.dev/ai";
+  }
+  try{
+    const headers = {"Content-Type":"application/json"};
+    if(AI_ACCESS_TOKEN) headers["X-Dashboard-Token"] = AI_ACCESS_TOKEN;
+    const r = await fetch(AI_PROXY_URL, {
+      method:  "POST",
+      headers,
+      body:    JSON.stringify({prompt}),
+      signal:  AbortSignal.timeout(30000)
+    });
+    let data;
+    try { data = await r.json(); } catch { data = {}; }
+    if(!r.ok){
+      const msg = data?.error || r.statusText || r.status;
+      return "ERR:" + msg;
+    }
+    return data.text || "ERR:Empty response from worker";
+  } catch(e) {
+    // "Failed to fetch" almost always means wrong URL or Worker not deployed
+    if(e.message.includes("Failed to fetch") || e.message.includes("NetworkError")){
+      return "ERR:Cannot reach Worker. Most likely cause: browsers block requests from file:// pages. Serve the dashboard via a local server (see AI panel for instructions), or host it online.";
+    }
+    if(e.message.includes("timeout") || e.message.includes("signal")){
+      return "ERR:Request timed out — Worker may be starting cold, try refreshing";
+    }
+    return "ERR:"+e.message;
+  }
+}
+async function runAllAI(){
+  document.getElementById("ai-upd").textContent="⏳";document.getElementById("ai-refresh-btn").disabled=true;
+  await Promise.all(Object.entries(AI_TOPICS).map(async([id,cfg])=>{document.getElementById("ai-panel-"+id).innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;document.getElementById("ai-panel-"+id).innerHTML=renderAI(await fetchAI(cfg.prompt),cfg.color);}));
+  document.getElementById("ai-upd").textContent="UPDATED "+tsNow();document.getElementById("ai-refresh-btn").disabled=false;
+}
+document.getElementById("ai-tab-bar").addEventListener("click",e=>{
+  const btn=e.target.closest(".tbtn");if(!btn||!btn.dataset.ai)return;
+  const col=btn.dataset.color||"#39d353";
+  document.querySelectorAll("#ai-tab-bar .tbtn").forEach(t=>{t.classList.remove("active");t.style.borderBottom="";t.style.color="";});
+  document.querySelectorAll("#ai-panels .tpanel").forEach(p=>p.classList.remove("active"));
+  btn.classList.add("active");btn.style.borderBottom=`2px solid ${col}`;btn.style.color=col;
+  document.getElementById("ai-panel-"+btn.dataset.ai).classList.add("active");
+});
+
+
+
+async function loadEONET(){
+  const box=document.getElementById("eonet-out"),upd=document.getElementById("eonet-upd");
+  box.innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
+  try{
+    const r=await fetch("https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=80&days=7",{signal:AbortSignal.timeout(20000),mode:"cors"});
+    const d=await r.json();
+    const cutoff48=new Date(Date.now()-48*3600*1000);
+    const WANT=["Wildfires","Volcanoes","Floods","Severe Storms","Droughts","Dust and Haze","Landslides"];
+    const events=(d.events||[]).filter(ev=>{const cat=ev.categories?.[0]?.title||"";if(!WANT.includes(cat))return false;if(cat==="Wildfires"){return new Date(ev.geometry?.[0]?.date||0)>=cutoff48;}return true;}).sort((a,b)=>new Date(b.geometry?.[0]?.date||0)-new Date(a.geometry?.[0]?.date||0));
+    upd.textContent="UPDATED "+tsNow();
+    if(!events.length){box.innerHTML=`<div class="empty"><p>No open events (7d)</p><a href="https://eonet.gsfc.nasa.gov/" target="_blank">Browse EONET ↗</a></div>`;return;}
+    const ICON={Wildfires:"🔥",Volcanoes:"🌋",Floods:"🌊","Severe Storms":"🌪",Droughts:"☀️","Dust and Haze":"💨",Landslides:"⛰️"};
+    const COL={Wildfires:"#ff2244",Volcanoes:"#ff6b35",Floods:"#a8dadc","Severe Storms":"#c77dff",Droughts:"#e8c547","Dust and Haze":"#f7c59f",Landslides:"#7aaa7c"};
+    box.innerHTML=events.map(ev=>{
+      const cat=ev.categories?.[0]?.title||"Unknown",col=COL[cat]||"#7aaa7c",icon=ICON[cat]||"⚠️";
+      const date=(ev.geometry?.[0]?.date||"").slice(0,10),coords=ev.geometry?.[0]?.coordinates;
+      const loc=coords?`${Math.abs(coords[1]).toFixed(1)}°${coords[1]>=0?"N":"S"}, ${Math.abs(coords[0]).toFixed(1)}°${coords[0]>=0?"E":"W"}`:"";
+      return`<div class="ai"><div style="display:flex;gap:7px;align-items:flex-start;"><span style="font-size:.9rem;flex-shrink:0;">${icon}</span><div style="flex:1;min-width:0;"><div style="font-size:.72rem;font-weight:700;color:${col};margin-bottom:3px;line-height:1.3;">${ev.title}</div><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;"><span class="bdg" style="color:${col};border-color:${col};background:${col}22;">${cat.toUpperCase()}</span>${loc?`<span class="adt">${loc}</span>`:""}<span class="adt">${date}</span></div></div></div></div>`;
+    }).join("");
+  }catch(e){box.innerHTML=`<div class="empty"><p>⚠ EONET unavailable</p><a href="https://eonet.gsfc.nasa.gov/" target="_blank">Browse EONET ↗</a></div>`;}
+}
+
+const ERA5_LOCS=[{name:"Amazon Basin",lat:-3.47,lon:-62.21},{name:"Congo Basin",lat:-0.22,lon:23.55},{name:"Siberia",lat:62.5,lon:105},{name:"Arctic (Svalbard)",lat:78.2,lon:15.6},{name:"SE Asia",lat:5.5,lon:102},{name:"Sahel",lat:14.5,lon:17.2},{name:"Australia Outback",lat:-23.7,lon:133.9},{name:"Greenland",lat:72,lon:-40}];
+async function loadERA5(){
+  const box=document.getElementById("era5-out"),upd=document.getElementById("era5-upd");
+  box.innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
+  const t=new Date();t.setDate(t.getDate()-6);
+  const end=t.toISOString().slice(0,10),start=new Date(t.getTime()-13*86400000).toISOString().slice(0,10);
+  const bEnd=new Date(t.getTime()-365*86400000).toISOString().slice(0,10),bStart=new Date(t.getTime()-378*86400000).toISOString().slice(0,10);
+  const results=await Promise.all(ERA5_LOCS.map(async loc=>{
+    try{
+      const mk=(s,e)=>`https://archive-api.open-meteo.com/v1/archive?latitude=${loc.lat}&longitude=${loc.lon}&daily=temperature_2m_max,temperature_2m_min&start_date=${s}&end_date=${e}&timezone=UTC`;
+      const[r1,r2]=await Promise.all([fetch(mk(start,end),{signal:AbortSignal.timeout(10000)}),fetch(mk(bStart,bEnd),{signal:AbortSignal.timeout(10000)})]);
+      const[d1,d2]=await Promise.all([r1.json(),r2.json()]);
+      const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+      return{name:loc.name,anomaly:+(avg([...d1.daily.temperature_2m_max,...d1.daily.temperature_2m_min])-avg([...d2.daily.temperature_2m_max,...d2.daily.temperature_2m_min])).toFixed(1)};
+    }catch(e){return null;}
+  }));
+  upd.textContent="UPDATED "+tsNow();
+  const valid=results.filter(Boolean);
+  if(!valid.length){box.innerHTML=`<div class="empty"><p>⚠ ERA5 unavailable</p></div>`;return;}
+  box.innerHTML=valid.map(r=>{
+    const col=r.anomaly>2?"#ff2244":r.anomaly>0.5?"#ff6b35":r.anomaly>-0.5?"#e8c547":r.anomaly>-2?"#74c69d":"#a8dadc";
+    const arr=r.anomaly>0?"▲":r.anomaly<0?"▼":"■",bw=Math.min(Math.abs(r.anomaly)/5*100,100);
+    return`<div class="cli"><div style="display:flex;justify-content:space-between;align-items:center;"><span class="cln">${r.name}</span><span style="color:${col};font-size:.76rem;font-weight:700;">${arr} ${r.anomaly>0?"+":""}${r.anomaly}°C</span></div><div style="height:3px;background:var(--brd);border-radius:2px;margin-top:4px;"><div style="height:100%;width:${bw}%;background:${col};border-radius:2px;${r.anomaly<0?"margin-left:auto;":""}"></div></div></div>`;
+  }).join("");
+}
+
+const SST_REGIONS=[{name:"Great Barrier Reef",lat:-18,lon:147.5},{name:"Caribbean Sea",lat:15,lon:-67},{name:"Gulf of Mexico",lat:25,lon:-90},{name:"Coral Triangle",lat:0,lon:125},{name:"Arctic Ocean",lat:80,lon:0},{name:"Indian Ocean",lat:-10,lon:75},{name:"Mediterranean",lat:38,lon:18},{name:"Amazon River Plume",lat:5,lon:-50}];
+async function loadSST(){
+  const box=document.getElementById("sst-out"),upd=document.getElementById("sst-upd");
+  box.innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
+  // Use 5 days ago — Open-Meteo marine data lags 3-4 days
+  const d=new Date();d.setDate(d.getDate()-5);const ds=d.toISOString().slice(0,10);
+  const prev=new Date(d);prev.setFullYear(prev.getFullYear()-1);const ps=prev.toISOString().slice(0,10);
+  const results=await Promise.all(SST_REGIONS.map(async r=>{
+    try{
+      const mk=s=>`https://marine-api.open-meteo.com/v1/marine?latitude=${r.lat}&longitude=${r.lon}&daily=sea_surface_temperature_max&start_date=${s}&end_date=${s}&timezone=UTC`;
+      const[r1,r2]=await Promise.all([fetch(mk(ds),{signal:AbortSignal.timeout(8000)}),fetch(mk(ps),{signal:AbortSignal.timeout(8000)})]);
+      const[d1,d2]=await Promise.all([r1.json(),r2.json()]);
+      const t1=d1.daily?.sea_surface_temperature_max?.[0],t2=d2.daily?.sea_surface_temperature_max?.[0];
+      if(t1==null||t2==null)return null;
+      return{name:r.name,temp:+t1.toFixed(1),anomaly:+(t1-t2).toFixed(1)};
+    }catch(e){return null;}
+  }));
+  upd.textContent="UPDATED "+tsNow();
+  const valid=results.filter(Boolean);
+  if(!valid.length){box.innerHTML=`<div class="empty"><p>⚠ SST unavailable</p></div>`;return;}
+  box.innerHTML=valid.map(r=>{
+    const col=r.anomaly>2?"#ff2244":r.anomaly>0.5?"#ff6b35":r.anomaly>-0.5?"#e8c547":"#74c69d";
+    const arr=r.anomaly>0?"▲":r.anomaly<0?"▼":"■",bw=Math.min(Math.abs(r.anomaly)/4*100,100);
+    return`<div class="cli"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div class="cln">${r.name}</div><div style="font-size:.58rem;color:var(--dim);">${r.temp}°C current</div></div><span style="color:${col};font-size:.78rem;font-weight:700;">${arr} ${r.anomaly>0?"+":""}${r.anomaly}°</span></div><div style="height:3px;background:var(--brd);border-radius:2px;margin-top:4px;"><div style="height:100%;width:${bw}%;background:${col};border-radius:2px;${r.anomaly<0?"margin-left:auto;":""}"></div></div></div>`;
+  }).join("");
+}
+
+
+async function loadWJC(){
+  const box=document.getElementById("wjc-out"),upd=document.getElementById("wjc-upd");
+  box.innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
+  let items=await fetchRSS("https://wildlifejustice.org/feed/",15);
+  if(!items.length)items=await fetchRSS("https://news.mongabay.com/feed/?post_type=posts&topic=wildlife-crime",15);
+  upd.textContent="UPDATED "+tsNow();
+  box.innerHTML=items.length?items.map(i=>`<div class="ai"><div style="display:flex;gap:7px;align-items:flex-start;"><span style="color:#ff2244;font-size:.85rem;flex-shrink:0;">🚨</span><div style="min-width:0;"><a href="${i.link}" target="_blank" style="display:block;font-size:.72rem;font-weight:700;color:#ff2244;text-decoration:none;margin-bottom:2px;line-height:1.3;">${i.title}</a>${i.desc?`<p style="font-size:.65rem;color:var(--txt);margin:0 0 2px;line-height:1.35;">${i.desc}</p>`:""}<span class="adt">${i.pubDate}</span></div></div></div>`).join(""):`<div class="empty"><p>⚠ Feed unavailable</p><a href="https://wildlifejustice.org/news/" target="_blank">WJC ↗</a></div>`;
+}
+
+async function loadReliefWeb(){
+  const box=document.getElementById("relief-out"),upd=document.getElementById("relief-upd");
+  box.innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
+  try{
+    const rwUrl="https://api.reliefweb.int/v1/disasters?appname=envdash&profile=list&preset=latest&slim=1&fields[include][]=name&fields[include][]=date&fields[include][]=country&fields[include][]=status&fields[include][]=type&limit=20";
+    const r=await fetch(rwUrl,{signal:AbortSignal.timeout(15000),headers:{"Accept":"application/json"}});
+    const d=await r.json();upd.textContent="UPDATED "+tsNow();if(!d.data?.length)throw new Error("empty");
+    box.innerHTML=d.data.map(ev=>{
+      const f=ev.fields,name=f.name||(f.type||[]).map(t=>t.name).join(", ");
+      const country=(f.country||[]).map(c=>c.name).join(", ")||"—",date=(f.date?.created||"").slice(0,10);
+      const status=(f.status||"ongoing").toUpperCase(),col=status==="ALERT"?"#ff2244":status==="ONGOING"?"#ff6b35":"#e8c547";
+      return`<div class="ai"><div style="display:flex;gap:7px;align-items:flex-start;"><span style="font-size:.85rem;flex-shrink:0;">🌪</span><div><div style="font-size:.72rem;font-weight:700;color:${col};margin-bottom:2px;line-height:1.3;">${name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;"><span class="bdg" style="color:${col};border-color:${col};background:${col}22;">${status}</span><span class="adt">${country}</span><span class="adt">${date}</span></div></div></div></div>`;
+    }).join("");
+  }catch(e){
+    const items=await fetchRSS("https://reliefweb.int/disasters/rss.xml",10);
+    upd.textContent="UPDATED "+tsNow();
+    box.innerHTML=items.length?items.map(i=>`<div class="ai"><div style="font-size:.72rem;font-weight:600;color:#e8c547;margin-bottom:2px;">${i.title}</div><span class="adt">${i.pubDate}</span></div>`).join(""):`<div class="empty"><p>⚠ ReliefWeb unavailable</p><a href="https://reliefweb.int/disasters" target="_blank">reliefweb.int ↗</a></div>`;
+  }
+}
+
+const TREND_TERMS=["CITES","IUCN","climate change","deforestation","wildlife trafficking","illegal fishing","pangolin","rhino poaching"];
+async function loadTrends(){
+  const box=document.getElementById("trends-out"),upd=document.getElementById("trends-upd");
+  box.innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
+  try{
+    const r=await fetch(PROXIES[0]("https://trends.google.com/trends/api/dailytrends?hl=en-US&tz=-60&geo=US&ns=15"),{signal:AbortSignal.timeout(10000)});
+    const txt=await r.text(),data=JSON.parse(txt.replace(/^[^{]+/,""));
+    const titles=data.default.trendingSearchesDays[0].trendingSearches.map(s=>s.title.query);
+    upd.textContent="UPDATED "+tsNow();
+    box.innerHTML=TREND_TERMS.map(term=>{
+      const hit=titles.find(t=>t.toLowerCase().includes(term.toLowerCase())),col=hit?"#ff6b35":"#2e4a30";
+      return`<div style="padding:7px 9px;border-bottom:1px solid var(--brd);border-left:2px solid ${hit?"var(--orange)":"transparent"};"><div style="display:flex;justify-content:space-between;align-items:center;"><span style="color:${col};font-size:.76rem;font-weight:600;">${term}</span>${hit?`<span style="font-size:.58rem;font-weight:700;color:var(--orange);background:rgba(255,107,53,.12);border:1px solid var(--orange);padding:1px 5px;border-radius:2px;animation:pulse 1.5s ease-in-out infinite;">⚡ SPIKE</span>`:""}</div>${hit?`<p style="font-size:.62rem;color:var(--txt2);margin:2px 0 0;">→ "${hit}"</p>`:""}</div>`;
+    }).join("");
+  }catch(e){upd.textContent="UPDATED "+tsNow();box.innerHTML=TREND_TERMS.map(t=>`<div style="padding:7px 9px;border-bottom:1px solid var(--brd);"><span style="color:var(--dim);font-size:.76rem;">${t}</span></div>`).join("");}
+}
+
+async function loadCO2(){
+  const box=document.getElementById("co2-out");
+  try{
+    const r=await fetch(PROXIES[0]("https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_weekly_mlo.csv"),{signal:AbortSignal.timeout(15000)});
+    const txt=await r.text(),rows=txt.split("\n").filter(l=>!l.startsWith("#")&&l.trim()).map(l=>l.split(",").map(v=>v.trim()));
+    const valid=rows.filter(r=>parseFloat(r[4])>0);if(!valid.length)throw new Error("no data");
+    const last=valid[valid.length-1],ppm=parseFloat(last[4]),date=`${last[0]}-${last[1].padStart(2,"0")}-${last[2].padStart(2,"0")}`;
+    const prevYr=valid.filter(r=>parseInt(r[0])===(parseInt(last[0])-1));
+    const delta=prevYr.length?(ppm-parseFloat(prevYr[prevYr.length-1][4])).toFixed(2):null;
+    const dc=delta&&parseFloat(delta)>2?"#ff2244":delta&&parseFloat(delta)>1?"#ff6b35":"#e8c547";
+    box.innerHTML=`<div class="co2w"><div class="co2b"><div class="co2v">${ppm}</div><div style="font-size:.57rem;color:var(--dim);">ppm CO\u2082</div></div><div class="co2sep"></div><div class="co2b"><div class="co2d" style="color:${dc};">${delta?"+"+delta:"—"}</div><div class="co2l">YR-ON-YR</div></div><div class="co2sep"></div><div class="co2b"><div style="font-size:.63rem;color:var(--txt2);">${date}</div><div class="co2l">MAUNA LOA</div><a href="https://gml.noaa.gov/ccgg/trends/" target="_blank" style="font-size:.57rem;color:var(--dim);text-decoration:none;">NOAA ↗</a></div></div>`;
+  }catch(e){box.innerHTML=`<div style="padding:8px;font-size:.67rem;color:var(--dim);">⚠ CO\u2082 data unavailable</div>`;}
+}
+
+document.getElementById("sources-grid").innerHTML=[
+  {tag:"FOREST",name:"Global Forest Watch",url:"https://www.globalforestwatch.org"},
+  {tag:"MARINE",name:"Global Fishing Watch",url:"https://globalfishingwatch.org"},
+  {tag:"IWT",name:"Ecosolve",url:"https://www.ecosolve.eco"},
+  {tag:"EONET",name:"NASA EONET",url:"https://eonet.gsfc.nasa.gov"},
+  {tag:"FIRMS",name:"NASA FIRMS Fire Map",url:"https://firms.modaps.eosdis.nasa.gov"},
+  {tag:"OPS",name:"Wildlife Justice Comm.",url:"https://wildlifejustice.org"},
+  {tag:"SST",name:"Open-Meteo Marine",url:"https://marine-api.open-meteo.com"},
+  {tag:"GBIF",name:"GBIF Species Obs.",url:"https://www.gbif.org"},
+  {tag:"DISAST",name:"ReliefWeb Disasters",url:"https://reliefweb.int"},
+  {tag:"CO\u2082",name:"NOAA Keeling Curve",url:"https://gml.noaa.gov/ccgg/trends/"},
+  {tag:"AI",name:"Groq / Llama 3.3",url:"https://console.groq.com"},
+  {tag:"NEWS",name:"Mongabay / Grist / Guardian",url:"https://news.mongabay.com"},
+].map(s=>`<div class="sc"><a href="${s.url}" target="_blank"><span class="stag">${s.tag}</span><span class="snm">${s.name}</span></a></div>`).join("");
+
+
+// ════════════════════════════════════════════════════════════
+// ENVIRONMENTAL STABILITY INDEX
+// Scores 0-100 (100 = pristine, 0 = critical). Pulls from
+// World Bank, GBIF, ReliefWeb, and Open-Meteo to compute
+// sub-scores across 5 dimensions per country.
+// ════════════════════════════════════════════════════════════
+
+const ESI_COUNTRIES = [
+  {code:"BRA",name:"Brazil",       flag:"🇧🇷", region:"Americas"},
+  {code:"IDN",name:"Indonesia",    flag:"🇮🇩", region:"SE Asia"},
+  {code:"COD",name:"DR Congo",     flag:"🇨🇩", region:"Africa"},
+  {code:"IND",name:"India",        flag:"🇮🇳", region:"Asia"},
+  {code:"CHN",name:"China",        flag:"🇨🇳", region:"Asia"},
+  {code:"RUS",name:"Russia",       flag:"🇷🇺", region:"Eurasia"},
+  {code:"AUS",name:"Australia",    flag:"🇦🇺", region:"Oceania"},
+  {code:"USA",name:"United States",flag:"🇺🇸", region:"Americas"},
+  {code:"NGA",name:"Nigeria",      flag:"🇳🇬", region:"Africa"},
+  {code:"ARG",name:"Argentina",    flag:"🇦🇷", region:"Americas"},
+  {code:"MYS",name:"Malaysia",     flag:"🇲🇾", region:"SE Asia"},
+  {code:"MEX",name:"Mexico",       flag:"🇲🇽", region:"Americas"},
+  {code:"ETH",name:"Ethiopia",     flag:"🇪🇹", region:"Africa"},
+  {code:"PHL",name:"Philippines",  flag:"🇵🇭", region:"SE Asia"},
+  {code:"PER",name:"Peru",         flag:"🇵🇪", region:"Americas"},
+  {code:"CMR",name:"Cameroon",     flag:"🇨🇲", region:"Africa"},
+  {code:"VNM",name:"Vietnam",      flag:"🇻🇳", region:"SE Asia"},
+  {code:"ZMB",name:"Zambia",       flag:"🇿🇲", region:"Africa"},
+  {code:"BOL",name:"Bolivia",      flag:"🇧🇴", region:"Americas"},
+  {code:"PNG",name:"Papua N.G.",   flag:"🇵🇬", region:"Oceania"},
+];
+
+// World Bank indicator IDs for each dimension
+// We fetch the most recent value and normalize to 0-100
+const WB_INDICATORS = {
+  deforestation: "AG.LND.FRST.ZS",   // Forest area % of land
+  co2:           "EN.ATM.CO2E.PC",    // CO2 emissions per capita
+  biodiversity:  "ER.PTD.TOTL.ZS",   // Terrestrial protected areas %
+  waterStress:   "ER.H2O.FWST.ZS",   // Level of water stress
+  airPollution:  "EN.ATM.PM25.MC.M3", // PM2.5 mean annual exposure
+};
+
+// Dimension weights for composite score
+const DIM_WEIGHTS = {
+  deforestation: 0.30,
+  biodiversity:  0.20,
+  disasters:     0.20,
+  co2:           0.15,
+  airPollution:  0.15,
+};
+
+// Cache for built ESI data
+let esiCache = null;
+
+// Fetch a World Bank indicator for a country (latest year)
+async function fetchWBIndicator(countryCode, indicator) {
+  try {
+    const url = `https://api.worldbank.org/v2/country/${countryCode}/indicator/${indicator}?format=json&mrv=1&per_page=1`;
+    const r = await fetch(url, {signal: AbortSignal.timeout(8000)});
+    const d = await r.json();
+    const val = d[1]?.[0]?.value;
+    return val != null ? parseFloat(val) : null;
+  } catch(e) { return null; }
+}
+
+// Fetch ReliefWeb disaster count for a country
+async function fetchDisasterCount(countryName) {
+  try {
+    const url = `https://api.reliefweb.int/v1/disasters?appname=envdash&filter[field]=country.name&filter[value]=${encodeURIComponent(countryName)}&sort[]=date:desc&limit=10&fields[include][]=date&fields[include][]=status`;
+    const r = await fetch(url, {signal: AbortSignal.timeout(8000)});
+    const d = await r.json();
+    const cutoff = new Date(Date.now() - 365*86400*1000);
+    const recent = (d.data||[]).filter(ev => new Date(ev.fields?.date?.created||0) > cutoff);
+    return recent.length;
+  } catch(e) { return 0; }
+}
+
+// Normalise raw indicator to 0–100 score
+// For "bad" indicators (higher = worse): invert
+function normalise(val, min, max, invert=false) {
+  if(val == null) return 50; // neutral if missing
+  const clamped = Math.max(min, Math.min(max, val));
+  const score = ((clamped - min) / (max - min)) * 100;
+  return invert ? 100 - score : score;
+}
+
+async function computeESICountry(c) {
+  // Fetch all indicators in parallel
+  const [forest, co2, biodiv, water, pm25, disasters] = await Promise.all([
+    fetchWBIndicator(c.code, WB_INDICATORS.deforestation),
+    fetchWBIndicator(c.code, WB_INDICATORS.co2),
+    fetchWBIndicator(c.code, WB_INDICATORS.biodiversity),
+    fetchWBIndicator(c.code, WB_INDICATORS.waterStress),
+    fetchWBIndicator(c.code, WB_INDICATORS.airPollution),
+    fetchDisasterCount(c.name),
+  ]);
+
+  // Score each dimension (0=worst, 100=best)
+  const dims = {
+    deforestation: normalise(forest, 0, 80),          // higher forest % = better
+    biodiversity:  normalise(biodiv, 0, 50),           // more protected area = better
+    co2:           normalise(co2, 0, 20, true),        // lower CO2 = better
+    airPollution:  normalise(pm25, 0, 80, true),       // lower PM2.5 = better
+    disasters:     normalise(disasters, 0, 8, true),   // fewer disasters = better
+  };
+
+  // Weighted composite
+  const score = Math.round(
+    dims.deforestation * DIM_WEIGHTS.deforestation +
+    dims.biodiversity  * DIM_WEIGHTS.biodiversity  +
+    dims.co2           * DIM_WEIGHTS.co2           +
+    dims.airPollution  * DIM_WEIGHTS.airPollution  +
+    dims.disasters     * DIM_WEIGHTS.disasters
+  );
+
+  // Raw values for detail panel
+  const raw = {
+    forest:    forest   != null ? forest.toFixed(1)+"%" : "N/A",
+    co2:       co2      != null ? co2.toFixed(1)+" t/cap" : "N/A",
+    biodiv:    biodiv   != null ? biodiv.toFixed(1)+"%" : "N/A",
+    water:     water    != null ? water.toFixed(1)+"%" : "N/A",
+    pm25:      pm25     != null ? pm25.toFixed(1)+" µg/m³" : "N/A",
+    disasters: disasters+" events (12m)",
+  };
+
+  return {...c, score, dims, raw, disasters};
+}
+
+function scoreColor(s) {
+  return s >= 70 ? "#39d353" : s >= 50 ? "#e8c547" : s >= 30 ? "#ff6b35" : "#ff2244";
+}
+function scoreLabel(s) {
+  return s >= 70 ? "STABLE" : s >= 50 ? "MODERATE" : s >= 30 ? "AT RISK" : "CRITICAL";
+}
+
+function renderESIBar(score, color, width="100%") {
+  return `<div style="height:4px;background:var(--brd);border-radius:2px;width:${width};margin-top:3px;">
+    <div style="height:100%;width:${score}%;background:${color};border-radius:2px;transition:width .4s ease;"></div>
+  </div>`;
+}
+
+async function buildESI() {
+  const box = document.getElementById("esi-out");
+  const upd = document.getElementById("esi-upd");
+  box.innerHTML = `<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
+  closeESIDetail();
+
+  // Compute in batches of 4 to avoid hammering APIs
+  const results = [];
+  for(let i=0; i<ESI_COUNTRIES.length; i+=4) {
+    const batch = ESI_COUNTRIES.slice(i, i+4);
+    const computed = await Promise.all(batch.map(computeESICountry));
+    results.push(...computed);
+    // Render progress
+    const sorted = [...results].sort((a,b) => a.score - b.score);
+    renderESIList(sorted);
+    upd.textContent = `${results.length}/${ESI_COUNTRIES.length}`;
+  }
+
+  esiCache = results.sort((a,b) => a.score - b.score);
+  renderESIList(esiCache);
+  upd.textContent = "UPDATED "+tsNow();
+}
+
+function renderESIList(countries) {
+  const box = document.getElementById("esi-out");
+  box.innerHTML = countries.map(c => {
+    const col = scoreColor(c.score);
+    const lbl = scoreLabel(c.score);
+    return `<div class="esi-row" onclick="openESIDetail('${c.code}')" style="padding:6px 10px;border-bottom:1px solid var(--brd);cursor:pointer;transition:background .1s;" onmouseover="this.style.background='var(--bg-h)'" onmouseout="this.style.background=''">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="display:flex;align-items:center;gap:7px;min-width:0;">
+          <span style="font-size:.95rem;flex-shrink:0;">${c.flag}</span>
+          <div style="min-width:0;">
+            <div style="font-size:.73rem;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.name}</div>
+            <div style="font-size:.58rem;color:var(--dim);">${c.region}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <span style="font-size:.58rem;font-weight:700;color:${col};background:${col}22;border:1px solid ${col};padding:1px 5px;border-radius:2px;">${lbl}</span>
+          <span style="font-size:.95rem;font-weight:700;color:${col};min-width:28px;text-align:right;">${c.score}</span>
+        </div>
+      </div>
+      ${renderESIBar(c.score, col)}
+    </div>`;
+  }).join("");
+}
+
+function openESIDetail(code) {
+  const c = esiCache?.find(x => x.code === code);
+  if(!c) return;
+
+  // Animate list narrowing + detail expanding
+  const panel = document.getElementById("esi-panel");
+  const list  = document.getElementById("esi-list");
+  const detail = document.getElementById("esi-detail");
+  list.style.width  = "44%";
+  detail.style.width = "56%";
+  panel.style.overflow = "hidden";
+
+  // Populate header
+  document.getElementById("esi-d-flag").textContent = c.flag;
+  document.getElementById("esi-d-name").textContent = c.name;
+  document.getElementById("esi-d-sub").textContent = "Environmental Intelligence · "+c.region;
+
+  const col = scoreColor(c.score);
+  const lbl = scoreLabel(c.score);
+
+  // Build detail body
+  const dims = [
+    {key:"deforestation", label:"🌳 Forest Cover",    val:c.raw?.forest,    score:c.dims?.deforestation, note:"Forest area % of land"},
+    {key:"biodiversity",  label:"🦜 Protected Areas", val:c.raw?.biodiv,    score:c.dims?.biodiversity,  note:"Terrestrial protected area %"},
+    {key:"co2",           label:"💨 CO₂ Emissions",   val:c.raw?.co2,       score:c.dims?.co2,           note:"Tonnes per capita"},
+    {key:"airPollution",  label:"🏭 Air Quality",     val:c.raw?.pm25,      score:c.dims?.airPollution,  note:"PM2.5 µg/m³ exposure"},
+    {key:"disasters",     label:"🌪 Disaster Events", val:c.raw?.disasters, score:c.dims?.disasters,     note:"Last 12 months · ReliefWeb"},
+  ];
+
+  document.getElementById("esi-detail-body").innerHTML = `
+    <!-- Score hero -->
+    <div style="padding:10px 12px;border-bottom:1px solid var(--brd);background:${col}11;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:2rem;font-weight:700;color:${col};line-height:1;">${c.score}</div>
+        <div>
+          <div style="font-size:.65rem;font-weight:700;color:${col};letter-spacing:.1em;">${lbl}</div>
+          <div style="font-size:.6rem;color:var(--dim);">/ 100 · Environmental Stability Score</div>
+        </div>
+      </div>
+      <div style="height:5px;background:var(--brd);border-radius:3px;margin-top:8px;">
+        <div style="height:100%;width:${c.score}%;background:${col};border-radius:3px;transition:width .5s ease;"></div>
+      </div>
+    </div>
+
+    <!-- Dimension breakdown -->
+    <div style="padding:8px 12px 4px;border-bottom:1px solid var(--brd);">
+      <div style="font-size:.59rem;font-weight:700;color:var(--dim);letter-spacing:.1em;margin-bottom:6px;">SIGNAL BREAKDOWN</div>
+      ${dims.map(d => {
+        const dc = scoreColor(Math.round(d.score||50));
+        return `<div style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;">
+            <span style="font-size:.69rem;font-weight:600;color:var(--txt);">${d.label}</span>
+            <span style="font-size:.69rem;font-weight:700;color:${dc};">${d.val||"—"}</span>
+          </div>
+          <div style="font-size:.57rem;color:var(--dim);margin-bottom:2px;">${d.note}</div>
+          <div style="height:3px;background:var(--brd);border-radius:2px;">
+            <div style="height:100%;width:${Math.round(d.score||50)}%;background:${dc};border-radius:2px;transition:width .4s ease;"></div>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+
+    <!-- Active signals summary -->
+    <div style="padding:8px 12px;">
+      <div style="font-size:.59rem;font-weight:700;color:var(--dim);letter-spacing:.1em;margin-bottom:6px;">ACTIVE SIGNALS</div>
+      ${[
+        {icon:"🌳", label:"Deforestation",   val: c.dims?.deforestation < 40 ? "HIGH RISK" : c.dims?.deforestation < 65 ? "ELEVATED" : "NORMAL",    col: c.dims?.deforestation < 40 ? "#ff2244" : c.dims?.deforestation < 65 ? "#ff6b35" : "#39d353"},
+        {icon:"🦜", label:"Biodiversity",    val: c.dims?.biodiversity  < 40 ? "CRITICAL"  : c.dims?.biodiversity  < 65 ? "MODERATE" : "PROTECTED", col: c.dims?.biodiversity  < 40 ? "#ff2244" : c.dims?.biodiversity  < 65 ? "#e8c547" : "#39d353"},
+        {icon:"💨", label:"Carbon Output",   val: c.dims?.co2           < 40 ? "CRITICAL"  : c.dims?.co2           < 65 ? "ELEVATED" : "LOW",       col: c.dims?.co2           < 40 ? "#ff2244" : c.dims?.co2           < 65 ? "#ff6b35" : "#39d353"},
+        {icon:"🌪", label:"Disaster Risk",   val: c.dims?.disasters     < 40 ? "HIGH"      : c.dims?.disasters     < 65 ? "MODERATE" : "LOW",       col: c.dims?.disasters     < 40 ? "#ff2244" : c.dims?.disasters     < 65 ? "#e8c547" : "#39d353"},
+        {icon:"🏭", label:"Air Pollution",   val: c.dims?.airPollution  < 40 ? "SEVERE"    : c.dims?.airPollution  < 65 ? "MODERATE" : "CLEAN",     col: c.dims?.airPollution  < 40 ? "#ff2244" : c.dims?.airPollution  < 65 ? "#e8c547" : "#39d353"},
+      ].map(s => `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--brd);">
+        <span style="font-size:.68rem;color:var(--txt2);">${s.icon} ${s.label}</span>
+        <span style="font-size:.62rem;font-weight:700;color:${s.col};background:${s.col}22;border:1px solid ${s.col};padding:1px 5px;border-radius:2px;">${s.val}</span>
+      </div>`).join("")}
+    </div>
+
+    <!-- Data sources note -->
+    <div style="padding:8px 12px;font-size:.59rem;color:var(--dim);line-height:1.6;border-top:1px solid var(--brd);">
+      Sources: World Bank Open Data · ReliefWeb Disasters · Composite weighted score (deforestation 30%, biodiversity 20%, disasters 20%, CO₂ 15%, air quality 15%)
+    </div>
+  `;
+}
+
+function closeESIDetail() {
+  document.getElementById("esi-list").style.width  = "100%";
+  document.getElementById("esi-detail").style.width = "0";
+}
+
+function resizePanels(){
+  const w=document.getElementById("rng-w").value;
+  const h=document.getElementById("rng-h").value;
+  document.getElementById("rng-w-val").textContent=w+"px";
+  document.getElementById("rng-h-val").textContent=h+"px";
+  const r=document.documentElement;
+  r.style.setProperty("--panel-h",h+"px");
+  // Set min col width so grid reflows naturally
+  document.getElementById("pgrid").style.gridTemplateColumns=`repeat(3,minmax(${w}px,1fr))`;
+}
+function resetPanelSize(){
+  document.getElementById("rng-w").value=280;
+  document.getElementById("rng-h").value=280;
+  resizePanels();
+}
+
+
+async function init(){
+  buildFeedTabs();
+  await Promise.all([loadAllFeeds(),runAllAI(),buildESI(),loadEONET(),loadERA5(),loadSST(),loadWJC(),loadReliefWeb(),loadTrends(),loadCO2()]);
+}
+init();
+</script>
+</body>
+</html>
