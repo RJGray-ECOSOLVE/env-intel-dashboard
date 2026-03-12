@@ -566,6 +566,15 @@ const PROXIES=[
 ];
 
 function parseRSSText(txt, max) {
+  if(!txt) return null;
+  // Unwrap JSON envelopes from proxies like allorigins.win {"contents":"..."} or corsproxy {"body":"..."}
+  const trimmed = txt.trim();
+  if(trimmed.startsWith("{")) {
+    try {
+      const j = JSON.parse(trimmed);
+      txt = j.contents || j.body || j.data || txt;
+    } catch(e) {}
+  }
   if(!txt || txt.trim().startsWith("<!")) return null;
   // Try XML first
   try {
