@@ -4,9 +4,6 @@
 
 **Live:** [rjgray-ecosolve.github.io/env-intel-dashboard](https://rjgray-ecosolve.github.io/env-intel-dashboard/)
 
----
-
-![Dashboard Screenshot](screenshot.png)
 
 ---
 
