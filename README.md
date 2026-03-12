@@ -12,7 +12,7 @@
 
 ## Inspiration
 
-This project was inspired by **[World Monitor](https://worldmonitor.org)** — a professional environmental intelligence platform. I wanted to explore whether a single analyst could replicate the core concept using only public APIs, open data, and a static HTML file. The answer turned out to be yes.
+This project was inspired by **[World Monitor](https://worldmonitor.org)** — a really cool security intelligence platform. I wanted to explore whether if I could replicate the core concept using only public APIs, open data, and a static HTML file and create something for environmental intelligrence. The answer turned out to be yes!
 
 ---
 
