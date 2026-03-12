@@ -171,4 +171,4 @@ MIT — free to use, fork, and adapt. If you build on it, a credit or link back 
 
 ---
 
-*Built by [RJ Gray](https://github.com/rjgray-ecosolve) · [Ecosolve](https://www.ecosolve.eco)*
+*Built by [Russell J. Gray](https://github.com/rjgray-ecosolve)
