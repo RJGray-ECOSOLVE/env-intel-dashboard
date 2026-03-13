@@ -567,15 +567,10 @@ const PROXIES=[
 
 function parseRSSText(txt, max) {
   if(!txt) return null;
-  // Unwrap JSON envelopes from proxies like allorigins.win {"contents":"..."} or corsproxy {"body":"..."}
-  const trimmed = txt.trim();
-  if(trimmed.startsWith("{")) {
-    try {
-      const j = JSON.parse(trimmed);
-      txt = j.contents || j.body || j.data || txt;
-    } catch(e) {}
-  }
-  if(!txt || txt.trim().startsWith("<!")) return null;
+  // Strip BOM if present
+  txt = txt.replace(/^﻿/, "");
+  const t = txt.trim();
+  if(!t || t.startsWith("<!")) return null;
   // Try XML first
   try {
     const doc = new DOMParser().parseFromString(txt, "text/xml");
@@ -627,7 +622,16 @@ async function fetchRSS(url, max=12) {
       }
     }
   } catch(e) {}
-  // 2. Fall back to CORS proxy chain
+  // 2. Try direct fetch (works for CORS-enabled feeds like Guardian, Grist)
+  try {
+    const rd = await fetch(url, {signal: AbortSignal.timeout(8000),
+      headers: {"Accept":"application/rss+xml,application/xml,text/xml,*/*"}});
+    if(rd.ok) {
+      const items = parseRSSText(await rd.text(), max);
+      if(items && items.length) return items;
+    }
+  } catch(e) {}
+  // 3. Fall back to CORS proxy chain
   for(const mkP of PROXIES) {
     try {
       const r = await fetch(mkP(url), {
@@ -858,19 +862,15 @@ async function loadReliefWeb(){
   const box=document.getElementById("relief-out"),upd=document.getElementById("relief-upd");
   box.innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
   try{
-    // ReliefWeb v1 API — clean URL, no preset/profile params that alter response structure
-    const rwUrl="https://api.reliefweb.int/v1/disasters?appname=envdash&limit=20&sort[]=date:desc&fields[include][]=name&fields[include][]=date.created&fields[include][]=country.name&fields[include][]=status&fields[include][]=type.name";
-    const r=await fetch(rwUrl,{signal:AbortSignal.timeout(15000),headers:{"Accept":"application/json","Content-Type":"application/json"}});
+    const rwUrl="https://api.reliefweb.int/v1/disasters?appname=envdash&profile=list&preset=latest&slim=1&fields[include][]=name&fields[include][]=date&fields[include][]=country&fields[include][]=status&fields[include][]=type&limit=20";
+    const r=await fetch(rwUrl,{signal:AbortSignal.timeout(15000),headers:{"Accept":"application/json"}});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const d=await r.json();upd.textContent="UPDATED "+tsNow();
     if(!d.data?.length) throw new Error("empty");
     box.innerHTML=d.data.map(ev=>{
-      const f=ev.fields;
-      const name=f.name||(f.type||[]).map(t=>t.name||t).join(", ")||"Unknown Event";
-      const country=(f.country||[]).map(c=>c.name||c).join(", ")||"—";
-      const date=(f.date?.created||f.date||"").toString().slice(0,10);
-      const status=(f.status||"ongoing").toUpperCase();
-      const col=status==="ALERT"?"#ff2244":status==="ONGOING"?"#ff6b35":"#e8c547";
+      const f=ev.fields,name=f.name||(f.type||[]).map(t=>t.name).join(", ");
+      const country=(f.country||[]).map(c=>c.name).join(", ")||"—",date=(f.date?.created||"").slice(0,10);
+      const status=(f.status||"ongoing").toUpperCase(),col=status==="ALERT"?"#ff2244":status==="ONGOING"?"#ff6b35":"#e8c547";
       return`<div class="ai"><div style="display:flex;gap:7px;align-items:flex-start;"><span style="font-size:.85rem;flex-shrink:0;">🌪</span><div><div style="font-size:.72rem;font-weight:700;color:${col};margin-bottom:2px;line-height:1.3;">${name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;"><span class="bdg" style="color:${col};border-color:${col};background:${col}22;">${status}</span><span class="adt">${country}</span><span class="adt">${date}</span></div></div></div></div>`;
     }).join("");
   }catch(e){
