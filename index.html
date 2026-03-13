@@ -609,6 +609,25 @@ function parseRSSText(txt, max) {
 }
 
 async function fetchRSS(url, max=12) {
+  // 1. Try rss2json.com — dedicated RSS→JSON service, handles Cloudflare-protected feeds
+  try {
+    const r2j = await fetch(
+      `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=${max}`,
+      {signal: AbortSignal.timeout(12000)}
+    );
+    if(r2j.ok) {
+      const d = await r2j.json();
+      if(d.status === "ok" && d.items?.length) {
+        return d.items.map(i => ({
+          title:   (i.title||"").replace(/<[^>]+>/g,"").trim(),
+          link:    i.link || i.guid || "#",
+          desc:    (i.description||i.content||"").replace(/<[^>]+>/g,"").slice(0,160).trim(),
+          pubDate: i.pubDate || ""
+        })).filter(i => i.title);
+      }
+    }
+  } catch(e) {}
+  // 2. Fall back to CORS proxy chain
   for(const mkP of PROXIES) {
     try {
       const r = await fetch(mkP(url), {
@@ -637,11 +656,21 @@ document.getElementById("map-tab-bar").addEventListener("click",e=>{
 });
 
 const FEEDS=[
-  {id:"wildlife_crime",label:"🦏 WILDLIFE CRIME",color:"#ff6b35",url:"https://news.mongabay.com/feed/?post_type=posts&topic=wildlife-crime"},
-  {id:"illegal_logging",label:"🌲 ILLEGAL LOGGING",color:"#f7c59f",url:"https://news.mongabay.com/feed/?post_type=posts&topic=illegal-logging"},
-  {id:"deforestation",label:"🔥 DEFORESTATION",color:"#e8c547",url:"https://news.mongabay.com/feed/?post_type=posts&topic=deforestation"},
-  {id:"mining",label:"⛏️ ILL. MINING",color:"#a8dadc",url:"https://news.mongabay.com/feed/?post_type=posts&topic=mining"},
-  {id:"indigenous",label:"✊ INDIGENOUS",color:"#c77dff",url:"https://news.mongabay.com/feed/?post_type=posts&topic=indigenous-peoples"},
+  {id:"wildlife_crime",label:"🦏 WILDLIFE CRIME",color:"#ff6b35",
+    url:"https://news.mongabay.com/feed/?post_type=posts&topic=wildlife-crime",
+    alt:"https://news.mongabay.com/?s=wildlife+crime&feed=rss2"},
+  {id:"illegal_logging",label:"🌲 ILLEGAL LOGGING",color:"#f7c59f",
+    url:"https://news.mongabay.com/feed/?post_type=posts&topic=illegal-logging",
+    alt:"https://news.mongabay.com/?s=illegal+logging&feed=rss2"},
+  {id:"deforestation",label:"🔥 DEFORESTATION",color:"#e8c547",
+    url:"https://news.mongabay.com/feed/?post_type=posts&topic=deforestation",
+    alt:"https://news.mongabay.com/?s=deforestation&feed=rss2"},
+  {id:"mining",label:"⛏️ ILL. MINING",color:"#a8dadc",
+    url:"https://news.mongabay.com/feed/?post_type=posts&topic=mining",
+    alt:"https://news.mongabay.com/?s=illegal+mining&feed=rss2"},
+  {id:"indigenous",label:"✊ INDIGENOUS",color:"#c77dff",
+    url:"https://news.mongabay.com/feed/?post_type=posts&topic=indigenous-peoples",
+    alt:"https://news.mongabay.com/?s=indigenous&feed=rss2"},
   {id:"grist",label:"🌿 GRIST",color:"#74c69d",url:"https://grist.org/feed/"},
   {id:"guardian",label:"📰 GUARDIAN ENV",color:"#90be6d",url:"https://www.theguardian.com/environment/rss"},
 ];
@@ -669,8 +698,12 @@ function buildFeedTabs(){
 async function loadFeed(id){
   const f=FEEDS.find(x=>x.id===id),box=document.getElementById("feed-content-"+id),upd=document.getElementById("upd-"+id);
   box.innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
-  const items=await fetchRSS(f.url,15);upd.textContent="UPDATED "+tsNow();
-  box.innerHTML=items.length?items.map(i=>`<div class="fi"><a href="${i.link}" target="_blank" class="fttl" style="color:${f.color};">${i.title}</a>${i.desc?`<p class="fdesc">${i.desc}</p>`:""}<span class="fdate">${i.pubDate}</span></div>`).join(""):`<div class="empty"><p>⚠ Feed unavailable</p><a href="https://news.mongabay.com" target="_blank">Mongabay ↗</a></div>`;
+  let items=await fetchRSS(f.url,15);
+  // If primary URL fails and an alt URL exists, try that
+  if(!items.length && f.alt) items=await fetchRSS(f.alt,15);
+  upd.textContent="UPDATED "+tsNow();
+  const fallbackLink=f.url.includes("mongabay")?"https://news.mongabay.com":f.url.includes("grist")?"https://grist.org":"https://theguardian.com/environment";
+  box.innerHTML=items.length?items.map(i=>`<div class="fi"><a href="${i.link}" target="_blank" class="fttl" style="color:${f.color};">${i.title}</a>${i.desc?`<p class="fdesc">${i.desc}</p>`:""}<span class="fdate">${i.pubDate}</span></div>`).join(""):`<div class="empty"><p>⚠ Feed unavailable</p><a href="${fallbackLink}" target="_blank">Visit source ↗</a></div>`;
 }
 async function loadAllFeeds(){for(const f of FEEDS)loadFeed(f.id);}
 
@@ -825,13 +858,19 @@ async function loadReliefWeb(){
   const box=document.getElementById("relief-out"),upd=document.getElementById("relief-upd");
   box.innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
   try{
-    const rwUrl="https://api.reliefweb.int/v1/disasters?appname=envdash&profile=list&preset=latest&slim=1&fields[include][]=name&fields[include][]=date&fields[include][]=country&fields[include][]=status&fields[include][]=type&limit=20";
-    const r=await fetch(rwUrl,{signal:AbortSignal.timeout(15000),headers:{"Accept":"application/json"}});
-    const d=await r.json();upd.textContent="UPDATED "+tsNow();if(!d.data?.length)throw new Error("empty");
+    // ReliefWeb v1 API — clean URL, no preset/profile params that alter response structure
+    const rwUrl="https://api.reliefweb.int/v1/disasters?appname=envdash&limit=20&sort[]=date:desc&fields[include][]=name&fields[include][]=date.created&fields[include][]=country.name&fields[include][]=status&fields[include][]=type.name";
+    const r=await fetch(rwUrl,{signal:AbortSignal.timeout(15000),headers:{"Accept":"application/json","Content-Type":"application/json"}});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const d=await r.json();upd.textContent="UPDATED "+tsNow();
+    if(!d.data?.length) throw new Error("empty");
     box.innerHTML=d.data.map(ev=>{
-      const f=ev.fields,name=f.name||(f.type||[]).map(t=>t.name).join(", ");
-      const country=(f.country||[]).map(c=>c.name).join(", ")||"—",date=(f.date?.created||"").slice(0,10);
-      const status=(f.status||"ongoing").toUpperCase(),col=status==="ALERT"?"#ff2244":status==="ONGOING"?"#ff6b35":"#e8c547";
+      const f=ev.fields;
+      const name=f.name||(f.type||[]).map(t=>t.name||t).join(", ")||"Unknown Event";
+      const country=(f.country||[]).map(c=>c.name||c).join(", ")||"—";
+      const date=(f.date?.created||f.date||"").toString().slice(0,10);
+      const status=(f.status||"ongoing").toUpperCase();
+      const col=status==="ALERT"?"#ff2244":status==="ONGOING"?"#ff6b35":"#e8c547";
       return`<div class="ai"><div style="display:flex;gap:7px;align-items:flex-start;"><span style="font-size:.85rem;flex-shrink:0;">🌪</span><div><div style="font-size:.72rem;font-weight:700;color:${col};margin-bottom:2px;line-height:1.3;">${name}</div><div style="display:flex;gap:4px;flex-wrap:wrap;"><span class="bdg" style="color:${col};border-color:${col};background:${col}22;">${status}</span><span class="adt">${country}</span><span class="adt">${date}</span></div></div></div></div>`;
     }).join("");
   }catch(e){
