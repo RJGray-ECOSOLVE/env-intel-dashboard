@@ -362,7 +362,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
             <div class="src"><span class="src-tag">MODEL</span>Llama 3.3-70b-versatile (Meta) via Groq inference API</div>
             <div class="src"><span class="src-tag">API</span>api.groq.com/openai/v1/chat/completions</div>
             <div class="src"><span class="src-tag">FLOW</span>One Groq request per UTC day by default · refresh button bypasses cache</div>
-            <div class="src"><span class="src-tag">TABS</span>Threat · Hotspots · Species · Policy — structured JSON briefings from live dashboard signals</div>
+            <div class="src"><span class="src-tag">TABS</span>Threat · Hotspots · Species · Policy — structured JSON briefings from RSS/news feeds and WJC reports</div>
             <div class="src"><span class="src-tag">KEY</span>Requires free Groq API key at console.groq.com/keys</div></div></div>
       </div>
     </div>
@@ -557,7 +557,7 @@ const AI_ACCESS_TOKEN = "";  // leave blank if you didn't set one
 const tsNow = () => new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
 const today = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
 const todayISO = new Date().toISOString().slice(0,10);
-const AI_CACHE_KEY = "env-intel-ai-cache-v2";
+const AI_CACHE_KEY = "env-intel-ai-cache-v4";
 const dashboardState = {
   feeds:{},
   eonet:[],
@@ -767,42 +767,83 @@ function renderAIResponse(payload){
 function pickTopLines(items,mapFn,limit=5){
   return (items||[]).slice(0,limit).map(mapFn).filter(Boolean);
 }
+function cleanBriefingText(s=""){
+  return String(s).replace(/\s+/g," ").trim();
+}
+function feedLabel(feedId){
+  return FEEDS.find(f=>f.id===feedId)?.label?.replace(/[^\w\s/.-]/g,"").trim() || feedId;
+}
+function summarizeFeedContext(){
+  return Object.entries(dashboardState.feeds).flatMap(([feedId,items]) =>
+    (items||[]).slice(0,3).map(item =>
+      `[${feedLabel(feedId)}] ${cleanBriefingText(item.title)}${item.desc?` — ${cleanBriefingText(item.desc).slice(0,180)}`:""}${item.pubDate?` (${item.pubDate})`:""}`
+    )
+  ).slice(0,18);
+}
+function summarizeEnforcementContext(){
+  return (dashboardState.wjc||[]).slice(0,6).map(item =>
+    `${cleanBriefingText(item.title)}${item.desc?` — ${cleanBriefingText(item.desc).slice(0,180)}`:""}${item.pubDate?` (${item.pubDate})`:""}`
+  );
+}
+function summarizeEONETContext(){
+  return (dashboardState.eonet||[]).slice(0,8).map(ev => `${ev.category}: ${cleanBriefingText(ev.title)} (${ev.date})`);
+}
+function summarizeReliefContext(){
+  return (dashboardState.relief||[]).slice(0,8).map(ev => `${cleanBriefingText(ev.name)} | ${ev.country} | ${ev.status} | ${ev.date}`);
+}
+function summarizeNewsSignals(){
+  return [...summarizeFeedContext(), ...summarizeEnforcementContext().map(item=>`[WJC] ${item}`)].slice(0,24);
+}
 function summarizeESI(){
   return (dashboardState.esi||[]).slice(0,5).map(c=>`${c.name} (${c.score}, ${scoreLabel(c.score)})`).join("; ") || "No ESI data.";
 }
 function buildAIPrompt(){
-  const feedSummary=Object.entries(dashboardState.feeds).flatMap(([key,items])=>pickTopLines(items,item=>`${key}: ${item.title}`,3)).slice(0,10);
-  const eonetSummary=pickTopLines(dashboardState.eonet,ev=>`${ev.category} — ${ev.title} (${ev.date})`,6);
-  const era5Summary=[...(dashboardState.era5||[])].sort((a,b)=>Math.abs(b.anomaly)-Math.abs(a.anomaly)).slice(0,5).map(r=>`${r.name} ${r.anomaly>0?"+":""}${r.anomaly}°C`);
-  const sstSummary=[...(dashboardState.sst||[])].sort((a,b)=>Math.abs(b.anomaly)-Math.abs(a.anomaly)).slice(0,5).map(r=>`${r.name} ${r.anomaly>0?"+":""}${r.anomaly}°C SST anomaly`);
-  const reliefSummary=pickTopLines(dashboardState.relief,ev=>`${ev.name} | ${ev.country} | ${ev.status} | ${ev.date}`,6);
-  const wjcSummary=pickTopLines(dashboardState.wjc,item=>item.title,5);
-  const trendSummary=(dashboardState.trends||[]).filter(t=>t.hit).slice(0,5).map(t=>`${t.term} → ${t.hit}`);
-  const co2Summary=dashboardState.co2?`Mauna Loa CO2 ${dashboardState.co2.ppm} ppm on ${dashboardState.co2.date}; YoY delta ${dashboardState.co2.delta ?? "N/A"} ppm.`:"CO2 unavailable.";
+  const newsSignals=summarizeNewsSignals();
   return `You are producing the dashboard's daily environmental intelligence briefing for ${today}.
 
-Use ONLY the intelligence context below. If the context is thin, be cautious and say likely/indicates rather than inventing facts.
-Prioritize recency, operational detail, and concise analyst language.
+Use ONLY the news and investigative feed items below. Ignore weather, climate anomaly, disaster, CO2, ESI, or any other raw-data context not present in the feed items.
+If the feed evidence is thin, be cautious and say likely/indicates rather than inventing facts.
+Prioritize recency, operational detail, named places, named taxa, routes, and enforcement detail.
 Return valid minified JSON only with this exact schema:
 {"threat":["..."],"hotspot":["..."],"species":["..."],"policy":["..."]}
 
-Rules:
-- threat: exactly 5 bullets. Summarize the most imminent environmental threats, including location, modus operandi, and a practical response. Format each bullet as **THREAT**: sentence.
-- hotspot: exactly 5 bullets. Name country/region plus the key environmental issue and why it matters now. Format **PLACE**: sentence.
-- species: exactly 10 bullets. Include terrestrial and marine taxa; genus/family-level labels are allowed when the threat affects a broader taxon. Include main threat and a conservation recommendation. Format **TAXON**: sentence.
-- policy: exactly 5 bullets. Cover the most recent environmental-relevant policy or enforcement changes in the context, name the country/body, and note likely repercussions. Format **BODY**: sentence.
-- Keep each bullet under 40 words. No markdown list markers. No prose outside JSON.
+This dashboard is for condensed source-driven intelligence, not generic environmental education.
+Bad bullets to avoid:
+- **CLIMATE CHANGE**: Rising CO2 levels threaten ecosystems
+- **DEFORESTATION**: Land clearing harms biodiversity
+- **POLLUTION**: Toxic waste affects human health
+- **OVERFISHING**: Depletes marine species
 
-Context:
-News feeds: ${feedSummary.join(" ; ") || "None"}
-WJC / enforcement: ${wjcSummary.join(" ; ") || "None"}
-NASA EONET: ${eonetSummary.join(" ; ") || "None"}
-ERA5 anomalies: ${era5Summary.join(" ; ") || "None"}
-SST anomalies: ${sstSummary.join(" ; ") || "None"}
-ReliefWeb disasters: ${reliefSummary.join(" ; ") || "None"}
-Keyword spikes: ${trendSummary.join(" ; ") || "None"}
-ESI lowest-scoring countries: ${summarizeESI()}
-Atmospheric context: ${co2Summary}`;
+Good bullets are specific, current, and grounded in the supplied feed items. They should mention a place, route, actor, taxon, enforcement mechanism, or policy body when relevant.
+
+Rules:
+- Every bullet must be traceable to one or more feed items below and must end with a source tag in this format: [Source: outlet]
+- threat: exactly 5 bullets. Summarize the most imminent threats emerging from the feed items. Each one must include (1) a named geography, (2) the threat vector or modus operandi, and (3) a practical response. Format **THREAT / PLACE**: sentence [Source: outlet].
+- hotspot: exactly 5 bullets. Each one must name a country/region and explain the dominant environmental issue plus why it is acute now, using the feed evidence only. Format **PLACE**: sentence [Source: outlet].
+- species: exactly 10 bullets. Include both terrestrial and marine taxa when supported by the feeds. Prefer species names, but genus/family-level labels are allowed when the reporting is broader. Each bullet must include the threat and one conservation recommendation. Format **TAXON**: sentence [Source: outlet].
+- policy: exactly 5 bullets. Each one must name the country/body, the environmental policy or enforcement change reported in the feeds, and one likely repercussion. Format **BODY / PLACE**: sentence [Source: outlet].
+- Do not use generic placeholders like "rising CO2", "land clearing", or "depletes species" unless they are explicitly tied to named places and current reporting in the feed items.
+- If a section lacks enough evidence for certainty, write a cautious but still specific bullet using words like "likely", "signals", or "indicates".
+- Keep each bullet between 18 and 45 words. No markdown list markers. No prose outside JSON.
+
+Feed items:
+${newsSignals.join("\n") || "None"}`;
+}
+function isBulletSpecific(section,text){
+  const v=cleanBriefingText(text);
+  const generic=/\b(rising co2 levels|land clearing harms biodiversity|toxic waste affects human health|depletes marine species|destroys habitats)\b/i.test(v);
+  const hasSourceTag=/\[Source:\s*[^\]]+\]$/i.test(v);
+  if(generic) return false;
+  if(!hasSourceTag) return false;
+  if(section==="species") return v.length >= 40 && /recommend|protect|enforc|monitor|closure|quota|patrol|habitat|bycatch|trade/i.test(v);
+  return v.length >= 45 && /[A-Z][a-z]+(?:\s[A-Z][a-z]+){0,2}/.test(v) && /response|enforc|patrol|monitor|ban|moratorium|route|port|fleet|seiz|smuggl|permit|crackdown|closure|prosecution|inspection|intel|reported|signals|indicates/i.test(v);
+}
+function isPayloadInformative(payload){
+  const required={threat:5, hotspot:5, species:10, policy:5};
+  return Object.entries(required).every(([section,count])=>{
+    const items=payload?.[section];
+    return Array.isArray(items) && items.length===count && items.every(item=>isBulletSpecific(section,item));
+  });
 }
 function parseAIJSON(text){
   const cleaned=String(text||"").trim().replace(/^```json\s*/i,"").replace(/^```/,"").replace(/```$/,"").trim();
@@ -874,11 +915,23 @@ async function runAllAI(forceRefresh=false){
       renderAIResponse(raw);
       return;
     }
-    const payload = parseAIJSON(raw);
+    let payload = parseAIJSON(raw);
+    if(!isPayloadInformative(payload)){
+      const repairPrompt = `${buildAIPrompt()}
+
+Your previous answer was rejected for being too generic. Regenerate it using only the feed items, and make every bullet end with a [Source: outlet] tag. Do not use raw-data reasoning or broad theme labels by themselves. Return JSON only.`;
+      const retryRaw = await fetchAI(repairPrompt);
+      if(typeof retryRaw === "string" && (retryRaw.startsWith("ERR:") || retryRaw === "NO_PROXY" || retryRaw.includes("file://"))){
+        throw new Error(retryRaw.replace(/^ERR:/,""));
+      }
+      payload = parseAIJSON(retryRaw);
+      if(!isPayloadInformative(payload)) throw new Error("Model returned generic briefing; try refresh again after more source data loads");
+    }
     localStorage.setItem(AI_CACHE_KEY, JSON.stringify({date:todayISO, payload}));
     renderAIResponse(payload);
     document.getElementById("ai-upd").textContent=`UPDATED ${todayISO} ${tsNow()}`;
   }catch(e){
+    document.getElementById("ai-upd").textContent="AI ERROR";
     renderAIResponse(`ERR:${e.message}`);
   }finally{
     document.getElementById("ai-refresh-btn").disabled=false;
@@ -1352,8 +1405,9 @@ function resetPanelSize(){
 
 async function init(){
   buildFeedTabs();
-  await Promise.all([loadAllFeeds(),buildESI(),loadEONET(),loadERA5(),loadSST(),loadWJC(),loadReliefWeb(),loadTrends(),loadCO2()]);
+  await Promise.all([loadAllFeeds(),loadWJC()]);
   await runAllAI();
+  await Promise.all([buildESI(),loadEONET(),loadERA5(),loadSST(),loadReliefWeb(),loadTrends(),loadCO2()]);
 }
 init();
 

@@ -64,7 +64,7 @@ Click any country in the list to expand a full signal breakdown with individual 
 
 ## AI Briefings
 
-The AI panel uses **Meta's Llama 3.3-70b** model via the [Groq](https://groq.com) inference API. It now assembles dashboard signals (news feeds, WJC enforcement items, NASA EONET, ERA5/SST anomalies, ReliefWeb, trends, CO₂, and ESI) into a single daily Groq request, caches the result in the browser for the current UTC day, and renders four structured intelligence briefings:
+The AI panel uses **Meta's Llama 3.3-70b** model via the [Groq](https://groq.com) inference API. It now condenses the dashboard's RSS/news sources — Mongabay topic feeds, Grist, The Guardian, and WJC enforcement updates — into a single daily Groq request, caches the result in the browser for the current UTC day, and renders four structured intelligence briefings:
 
 - **⚠ Threat** — 5 imminent threats with location, modus operandi, and response options
 - **📍 Hotspots** — 5 geographies with the most urgent environmental pressure signals
