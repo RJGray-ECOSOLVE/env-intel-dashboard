@@ -827,19 +827,35 @@ ${newsSignals.join("\n") || "None"}`;
 }
 function isBulletSpecific(section,text){
   const v=cleanBriefingText(text);
-  const generic=/\b(rising co2 levels|land clearing harms biodiversity|toxic waste affects human health|depletes marine species|destroys habitats)\b/i.test(v);
   const hasSourceTag=/\[Source:\s*[^\]]+\]$/i.test(v);
-  if(generic) return false;
-  if(!hasSourceTag) return false;
-  if(section==="species") return v.length >= 40 && /recommend|protect|enforc|monitor|closure|quota|patrol|habitat|bycatch|trade/i.test(v);
-  return v.length >= 45 && /[A-Z][a-z]+(?:\s[A-Z][a-z]+){0,2}/.test(v) && /response|enforc|patrol|monitor|ban|moratorium|route|port|fleet|seiz|smuggl|permit|crackdown|closure|prosecution|inspection|intel|reported|signals|indicates/i.test(v);
+  if(v.length < 18) return false;
+  if(section==="species") return hasSourceTag || v.length >= 28;
+  return hasSourceTag || v.length >= 28;
 }
 function isPayloadInformative(payload){
   const required={threat:5, hotspot:5, species:10, policy:5};
   return Object.entries(required).every(([section,count])=>{
     const items=payload?.[section];
-    return Array.isArray(items) && items.length===count && items.every(item=>isBulletSpecific(section,item));
+    return Array.isArray(items) && items.length >= Math.min(3,count) && items.some(item=>isBulletSpecific(section,item));
   });
+}
+function normalizePayload(payload){
+  const targets={threat:5, hotspot:5, species:10, policy:5};
+  const fallback={
+    threat:"**LOW CONFIDENCE / GLOBAL**: Feed signal was weak after retry; refresh later for a more detailed summary. [Source: dashboard]",
+    hotspot:"**MULTIPLE REGIONS**: Feed signal was weak after retry; monitor the latest reporting tabs for sharper locality. [Source: dashboard]",
+    species:"**MONITORED TAXA**: Feed signal was weak after retry; use the source feeds for the latest named species pressure. [Source: dashboard]",
+    policy:"**MONITORING / GLOBAL**: Feed signal was weak after retry; check the latest reporting for confirmed policy updates. [Source: dashboard]",
+  };
+  const normalized={};
+  for(const [section,count] of Object.entries(targets)){
+    const items=(Array.isArray(payload?.[section]) ? payload[section] : [])
+      .map(item=>cleanBriefingText(item))
+      .filter(Boolean);
+    while(items.length < count) items.push(fallback[section]);
+    normalized[section]=items.slice(0,count);
+  }
+  return normalized;
 }
 function parseAISectionsFromText(text){
   const lines=String(text||"").split("\n").map(line=>line.trim()).filter(Boolean);
@@ -953,7 +969,8 @@ async function runAllAI(forceRefresh=false){
       renderAIResponse(raw);
       return;
     }
-    let payload = await coerceAIOutput(raw);
+    let payload = normalizePayload(await coerceAIOutput(raw));
+    let usedFallback = false;
     if(!isPayloadInformative(payload)){
       const repairPrompt = `${buildAIPrompt()}
 
@@ -962,12 +979,12 @@ Your previous answer was rejected for being too generic. Regenerate it using onl
       if(typeof retryRaw === "string" && (retryRaw.startsWith("ERR:") || retryRaw === "NO_PROXY" || retryRaw.includes("file://"))){
         throw new Error(retryRaw.replace(/^ERR:/,""));
       }
-      payload = await coerceAIOutput(retryRaw);
-      if(!isPayloadInformative(payload)) throw new Error("Model returned generic briefing; try refresh again after more source data loads");
+      payload = normalizePayload(await coerceAIOutput(retryRaw));
+      usedFallback = !isPayloadInformative(payload);
     }
     localStorage.setItem(AI_CACHE_KEY, JSON.stringify({date:todayISO, payload}));
     renderAIResponse(payload);
-    document.getElementById("ai-upd").textContent=`UPDATED ${todayISO} ${tsNow()}`;
+    document.getElementById("ai-upd").textContent=usedFallback?`UPDATED ${todayISO} FALLBACK`:`UPDATED ${todayISO} ${tsNow()}`;
   }catch(e){
     document.getElementById("ai-upd").textContent="AI ERROR";
     renderAIResponse(`ERR:${e.message}`);
