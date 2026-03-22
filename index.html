@@ -276,7 +276,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
     <span class="hl-logo">🌍</span>
     <div>
       <span class="hl-t">ENVIRONMENTAL INTELLIGENCE DASHBOARD</span>
-      <span class="hl-s">ILLICIT ACTIVITY · FIRE ALERTS · CLIMATE ANOMALIES · AI INTELLIGENCE</span>
+      <span class="hl-s">ILLICIT ACTIVITY · FIRE ALERTS · CLIMATE ANOMALIES · AI INTELLIGENCE · EIA CRIME TRACKER</span>
     </div>
   </div>
   <div class="hr">
@@ -292,6 +292,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
     <button class="mtab" data-mi="2" data-color="#a8dadc">🌊 MARINE</button>
     <button class="mtab" data-mi="3" data-color="#c77dff">🔍 CYBER / IWT</button>
     <button class="mtab" data-mi="4" data-color="#ff6b35">🦏 WILDEYE IWT</button>
+    <button class="mtab" data-mi="5" data-color="#e8c547">🕵️ EIA CRIME TRACKER</button>
   </div>
   <div class="map-frames">
     <div id="mf-1" class="mframe active">
@@ -309,6 +310,10 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
     <div id="mf-4" class="mframe">
       <iframe src="https://global.wildeye.oxpeckers.org/" allowfullscreen loading="lazy"></iframe>
       <a href="https://global.wildeye.oxpeckers.org/" target="_blank" class="mext" style="color:#ff6b35;border-color:#ff6b35;">OPEN FULL MAP ↗</a>
+    </div>
+    <div id="mf-5" class="mframe">
+      <iframe src="https://app.powerbi.com/view?pageName=ReportSection3a4afc2758f1f77c3f32&r=eyJrIjoiZGJmNGIwODgtMTgyMS00NmVlLWJmNWUtZTAzZDBlMmQ1ODI2IiwidCI6IjBiMzNkZjAwLTYzNGMtNDBlYy1iOGQ5LTZhMGI2MjYyNmU1ZCJ9" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+      <a href="https://eia-international.org/global-environmental-crime-tracker/" target="_blank" class="mext" style="color:#e8c547;border-color:#e8c547;">OPEN EIA TRACKER ↗</a>
     </div>
   </div>
 </div>
@@ -914,6 +919,7 @@ document.getElementById("sources-grid").innerHTML=[
   {tag:"FOREST",name:"Global Forest Watch",url:"https://www.globalforestwatch.org"},
   {tag:"MARINE",name:"Global Fishing Watch",url:"https://globalfishingwatch.org"},
   {tag:"IWT",name:"Ecosolve",url:"https://www.ecosolve.eco"},
+  {tag:"EIA",name:"EIA Crime Tracker",url:"https://eia-international.org/global-environmental-crime-tracker/"},
   {tag:"EONET",name:"NASA EONET",url:"https://eonet.gsfc.nasa.gov"},
   {tag:"FIRMS",name:"NASA FIRMS Fire Map",url:"https://firms.modaps.eosdis.nasa.gov"},
   {tag:"OPS",name:"Wildlife Justice Comm.",url:"https://wildlifejustice.org"},
