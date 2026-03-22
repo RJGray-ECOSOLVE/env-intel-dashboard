@@ -770,19 +770,23 @@ function pickTopLines(items,mapFn,limit=5){
 function cleanBriefingText(s=""){
   return String(s).replace(/\s+/g," ").trim();
 }
+function truncateText(s="",max=120){
+  const clean=cleanBriefingText(s);
+  return clean.length>max?clean.slice(0,max-1)+"…":clean;
+}
 function feedLabel(feedId){
   return FEEDS.find(f=>f.id===feedId)?.label?.replace(/[^\w\s/.-]/g,"").trim() || feedId;
 }
 function summarizeFeedContext(){
   return Object.entries(dashboardState.feeds).flatMap(([feedId,items]) =>
-    (items||[]).slice(0,3).map(item =>
-      `[${feedLabel(feedId)}] ${cleanBriefingText(item.title)}${item.desc?` — ${cleanBriefingText(item.desc).slice(0,180)}`:""}${item.pubDate?` (${item.pubDate})`:""}`
+    (items||[]).slice(0,2).map(item =>
+      `[${feedLabel(feedId)}] ${truncateText(item.title,100)}${item.desc?` — ${truncateText(item.desc,90)}`:""}`
     )
-  ).slice(0,18);
+  ).slice(0,10);
 }
 function summarizeEnforcementContext(){
   return (dashboardState.wjc||[]).slice(0,6).map(item =>
-    `${cleanBriefingText(item.title)}${item.desc?` — ${cleanBriefingText(item.desc).slice(0,180)}`:""}${item.pubDate?` (${item.pubDate})`:""}`
+    `${truncateText(item.title,100)}${item.desc?` — ${truncateText(item.desc,90)}`:""}`
   );
 }
 function summarizeEONETContext(){
@@ -792,40 +796,32 @@ function summarizeReliefContext(){
   return (dashboardState.relief||[]).slice(0,8).map(ev => `${cleanBriefingText(ev.name)} | ${ev.country} | ${ev.status} | ${ev.date}`);
 }
 function summarizeNewsSignals(){
-  return [...summarizeFeedContext(), ...summarizeEnforcementContext().map(item=>`[WJC] ${item}`)].slice(0,24);
+  return [...summarizeFeedContext(), ...summarizeEnforcementContext().map(item=>`[WJC] ${item}`)].slice(0,12);
+}
+function compactFeedBlock(lines,maxChars=1800){
+  let out=[], total=0;
+  for(const line of lines){
+    const next = (out.length ? "\n" : "") + line;
+    if(total + next.length > maxChars) break;
+    out.push(line);
+    total += next.length;
+  }
+  return out;
 }
 function summarizeESI(){
   return (dashboardState.esi||[]).slice(0,5).map(c=>`${c.name} (${c.score}, ${scoreLabel(c.score)})`).join("; ") || "No ESI data.";
 }
 function buildAIPrompt(){
-  const newsSignals=summarizeNewsSignals();
-  return `You are producing the dashboard's daily environmental intelligence briefing for ${today}.
-
-Use ONLY the news and investigative feed items below. Ignore weather, climate anomaly, disaster, CO2, ESI, or any other raw-data context not present in the feed items.
-If the feed evidence is thin, be cautious and say likely/indicates rather than inventing facts.
-Prioritize recency, operational detail, named places, named taxa, routes, and enforcement detail.
-Return valid minified JSON only with this exact schema:
+  const newsSignals=compactFeedBlock(summarizeNewsSignals(), 1800);
+  return `Daily env intelligence for ${today}. Use ONLY feed items below. No raw-data reasoning. Return minified JSON:
 {"threat":["..."],"hotspot":["..."],"species":["..."],"policy":["..."]}
-
-This dashboard is for condensed source-driven intelligence, not generic environmental education.
-Bad bullets to avoid:
-- **CLIMATE CHANGE**: Rising CO2 levels threaten ecosystems
-- **DEFORESTATION**: Land clearing harms biodiversity
-- **POLLUTION**: Toxic waste affects human health
-- **OVERFISHING**: Depletes marine species
-
-Good bullets are specific, current, and grounded in the supplied feed items. They should mention a place, route, actor, taxon, enforcement mechanism, or policy body when relevant.
-
 Rules:
-- Every bullet must be traceable to one or more feed items below and must end with a source tag in this format: [Source: outlet]
-- threat: exactly 5 bullets. Summarize the most imminent threats emerging from the feed items. Each one must include (1) a named geography, (2) the threat vector or modus operandi, and (3) a practical response. Format **THREAT / PLACE**: sentence [Source: outlet].
-- hotspot: exactly 5 bullets. Each one must name a country/region and explain the dominant environmental issue plus why it is acute now, using the feed evidence only. Format **PLACE**: sentence [Source: outlet].
-- species: exactly 10 bullets. Include both terrestrial and marine taxa when supported by the feeds. Prefer species names, but genus/family-level labels are allowed when the reporting is broader. Each bullet must include the threat and one conservation recommendation. Format **TAXON**: sentence [Source: outlet].
-- policy: exactly 5 bullets. Each one must name the country/body, the environmental policy or enforcement change reported in the feeds, and one likely repercussion. Format **BODY / PLACE**: sentence [Source: outlet].
-- Do not use generic placeholders like "rising CO2", "land clearing", or "depletes species" unless they are explicitly tied to named places and current reporting in the feed items.
-- If a section lacks enough evidence for certainty, write a cautious but still specific bullet using words like "likely", "signals", or "indicates".
-- Keep each bullet between 18 and 45 words. No markdown list markers. No prose outside JSON.
-
+- Every bullet must end with [Source: outlet].
+- threat: 5 bullets, each with place + threat vector/method + response. Format **THREAT / PLACE**: sentence [Source: outlet].
+- hotspot: 5 bullets, each with place + issue + why acute now. Format **PLACE**: sentence [Source: outlet].
+- species: 10 bullets, terrestrial and marine where supported; include threat + recommendation. Format **TAXON**: sentence [Source: outlet].
+- policy: 5 bullets, each with body/place + policy/enforcement change + repercussion. Format **BODY / PLACE**: sentence [Source: outlet].
+- Be specific; avoid generic labels like climate change, pollution, deforestation, overfishing by themselves.
 Feed items:
 ${newsSignals.join("\n") || "None"}`;
 }
