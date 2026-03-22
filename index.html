@@ -557,7 +557,7 @@ const AI_ACCESS_TOKEN = "";  // leave blank if you didn't set one
 const tsNow = () => new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
 const today = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
 const todayISO = new Date().toISOString().slice(0,10);
-const AI_CACHE_KEY = "env-intel-ai-cache-v4";
+const AI_CACHE_KEY = "env-intel-ai-cache-v5";
 const dashboardState = {
   feeds:{},
   eonet:[],
@@ -784,6 +784,15 @@ function summarizeFeedContext(){
     )
   ).slice(0,10);
 }
+function summarizeSpeciesFeedContext(){
+  return Object.entries(dashboardState.feeds)
+    .filter(([feedId])=>feedId!=="indigenous")
+    .flatMap(([feedId,items]) =>
+      (items||[]).slice(0,2).map(item =>
+        `[${feedLabel(feedId)}] ${truncateText(item.title,100)}${item.desc?` — ${truncateText(item.desc,90)}`:""}`
+      )
+    ).slice(0,8);
+}
 function summarizeEnforcementContext(){
   return (dashboardState.wjc||[]).slice(0,6).map(item =>
     `${truncateText(item.title,100)}${item.desc?` — ${truncateText(item.desc,90)}`:""}`
@@ -813,6 +822,7 @@ function summarizeESI(){
 }
 function buildAIPrompt(){
   const newsSignals=compactFeedBlock(summarizeNewsSignals(), 1800);
+  const speciesSignals=compactFeedBlock([...summarizeSpeciesFeedContext(), ...summarizeEnforcementContext().map(item=>`[WJC] ${item}`)], 900);
   return `Daily env intelligence for ${today}. Use ONLY feed items below. No raw-data reasoning. Return minified JSON:
 {"threat":["..."],"hotspot":["..."],"species":["..."],"policy":["..."]}
 Rules:
@@ -820,16 +830,21 @@ Rules:
 - threat: 5 bullets, each with place + threat vector/method + response. Format **THREAT / PLACE**: sentence [Source: outlet].
 - hotspot: 5 bullets, each with place + issue + why acute now. Format **PLACE**: sentence [Source: outlet].
 - species: 10 bullets, terrestrial and marine where supported; include threat + recommendation. Format **TAXON**: sentence [Source: outlet].
+- species safety: ONLY list biological taxa (animal, plant, fungus, fish, coral, tree genus/family, etc.). NEVER list people, Indigenous groups, communities, agencies, rangers, fishers, journalists, or places as taxa.
 - policy: 5 bullets, each with body/place + policy/enforcement change + repercussion. Format **BODY / PLACE**: sentence [Source: outlet].
 - Be specific; avoid generic labels like climate change, pollution, deforestation, overfishing by themselves.
 Feed items:
-${newsSignals.join("\n") || "None"}`;
+${newsSignals.join("\n") || "None"}
+
+Species-specific feed items:
+${speciesSignals.join("\n") || "None"}`;
 }
 function isBulletSpecific(section,text){
   const v=cleanBriefingText(text);
   const hasSourceTag=/\[Source:\s*[^\]]+\]$/i.test(v);
+  const humanTerms=/\b(indigenous|community|communities|people|peoples|tribe|tribal|pirahã|piraha|ranger|journalist|activist|villager|fishers|fishermen|farmer|farmers)\b/i.test(v);
   if(v.length < 18) return false;
-  if(section==="species") return hasSourceTag || v.length >= 28;
+  if(section==="species") return !humanTerms && (hasSourceTag || v.length >= 28);
   return hasSourceTag || v.length >= 28;
 }
 function isPayloadInformative(payload){
@@ -851,7 +866,8 @@ function normalizePayload(payload){
   for(const [section,count] of Object.entries(targets)){
     const items=(Array.isArray(payload?.[section]) ? payload[section] : [])
       .map(item=>cleanBriefingText(item))
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter(item=>section!=="species" || isBulletSpecific("species", item));
     while(items.length < count) items.push(fallback[section]);
     normalized[section]=items.slice(0,count);
   }
