@@ -64,12 +64,14 @@ Click any country in the list to expand a full signal breakdown with individual 
 
 ## AI Briefings
 
-The AI panel uses **Meta's Llama 3.3-70b** model via the [Groq](https://groq.com) inference API. It generates four date-aware intelligence briefings on load:
+The AI panel uses **Meta's Llama 3.3-70b** model via the [Groq](https://groq.com) inference API. It now assembles dashboard signals (news feeds, WJC enforcement items, NASA EONET, ERA5/SST anomalies, ReliefWeb, trends, CO₂, and ESI) into a single daily Groq request, caches the result in the browser for the current UTC day, and renders four structured intelligence briefings:
 
-- **⚠ Threat** — current global environmental crime vectors
-- **📍 Hotspots** — highest-priority geographic areas
-- **🦏 Species** — species under active trafficking pressure
-- **📜 Policy** — recent enforcement and policy developments
+- **⚠ Threat** — 5 imminent threats with location, modus operandi, and response options
+- **📍 Hotspots** — 5 geographies with the most urgent environmental pressure signals
+- **🦏 Species** — top 10 affected terrestrial or marine taxa plus recommendations
+- **📜 Policy** — 5 recent policy or enforcement changes with likely repercussions
+
+Use the refresh button to override the daily cache and force a fresh Groq generation.
 
 Because API keys should never be exposed in client-side code, requests are routed through a **Cloudflare Worker** acting as a secure server-side proxy.
 
