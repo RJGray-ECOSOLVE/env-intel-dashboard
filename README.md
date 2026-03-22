@@ -25,6 +25,7 @@ The dashboard pulls live data from 13+ sources and renders them in a single scro
 | 🌊 Marine | [Global Fishing Watch](https://globalfishingwatch.org) | Illegal & unregulated fishing activity |
 | 🔍 Cyber / IWT | [Ecosolve](https://www.ecosolve.eco) | Cyber-enabled wildlife trafficking intelligence |
 | 🦏 Wildeye IWT | [Wildeye / Oxpeckers](https://global.wildeye.oxpeckers.org) | Africa-focused wildlife crime mapping |
+| 🕵️ EIA Crime Tracker | [Environmental Investigation Agency](https://eia-international.org/global-environmental-crime-tracker/) | Global environmental crime seizures, routes, prosecutions, and case intelligence |
 
 ### 📊 Intelligence Panels
 
@@ -144,6 +145,7 @@ This dashboard is an aggregation layer only. All data, maps, and intelligence be
 | Global Forest Watch | [globalforestwatch.org](https://www.globalforestwatch.org) |
 | Global Fishing Watch | [globalfishingwatch.org](https://globalfishingwatch.org) |
 | Ecosolve | [ecosolve.eco](https://www.ecosolve.eco) |
+| EIA Global Environmental Crime Tracker | [eia-international.org](https://eia-international.org/global-environmental-crime-tracker/) |
 | Wildeye / Oxpeckers | [global.wildeye.oxpeckers.org](https://global.wildeye.oxpeckers.org) |
 | NASA EONET | [eonet.gsfc.nasa.gov](https://eonet.gsfc.nasa.gov) |
 | NOAA Global Monitoring Laboratory | [gml.noaa.gov](https://gml.noaa.gov/ccgg/trends/) |
