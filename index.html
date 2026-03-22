@@ -357,11 +357,12 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
       <span class="phl">🤖 AI INTEL — GROQ / LLAMA 3.3</span>
       <div class="phr">
         <span class="fupd" id="ai-upd">—</span>
-        <button class="rbtn" id="ai-refresh-btn" onclick="runAllAI()" style="color:#39d353;border-color:#39d353;">↻</button>
+        <button class="rbtn" id="ai-refresh-btn" onclick="runAllAI(true)" style="color:#39d353;border-color:#39d353;">↻</button>
         <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>AI INTEL BRIEFINGS</strong>
             <div class="src"><span class="src-tag">MODEL</span>Llama 3.3-70b-versatile (Meta) via Groq inference API</div>
             <div class="src"><span class="src-tag">API</span>api.groq.com/openai/v1/chat/completions</div>
-            <div class="src"><span class="src-tag">TABS</span>Threat · Hotspots · Species · Policy — date-aware prompts</div>
+            <div class="src"><span class="src-tag">FLOW</span>One Groq request per UTC day by default · refresh button bypasses cache</div>
+            <div class="src"><span class="src-tag">TABS</span>Threat · Hotspots · Species · Policy — structured JSON briefings from RSS/news feeds and WJC reports</div>
             <div class="src"><span class="src-tag">KEY</span>Requires free Groq API key at console.groq.com/keys</div></div></div>
       </div>
     </div>
@@ -555,6 +556,19 @@ const AI_ACCESS_TOKEN = "";  // leave blank if you didn't set one
 
 const tsNow = () => new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
 const today = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+const todayISO = new Date().toISOString().slice(0,10);
+const AI_CACHE_KEY = "env-intel-ai-cache-v4";
+const dashboardState = {
+  feeds:{},
+  eonet:[],
+  era5:[],
+  sst:[],
+  wjc:[],
+  relief:[],
+  trends:[],
+  co2:null,
+  esi:[],
+};
 
 function cleanXML(s=""){
   return s.replace(/<[^>]+>/g,"")
@@ -711,16 +725,17 @@ async function loadFeed(id){
   // If primary URL fails and an alt URL exists, try that
   if(!items.length && f.alt) items=await fetchRSS(f.alt,15);
   upd.textContent="UPDATED "+tsNow();
+  dashboardState.feeds[id]=items;
   const fallbackLink=f.url.includes("mongabay")?"https://news.mongabay.com":f.url.includes("grist")?"https://grist.org":"https://theguardian.com/environment";
   box.innerHTML=items.length?items.map(i=>`<div class="fi"><a href="${i.link}" target="_blank" class="fttl" style="color:${f.color};">${i.title}</a>${i.desc?`<p class="fdesc">${i.desc}</p>`:""}<span class="fdate">${i.pubDate}</span></div>`).join(""):`<div class="empty"><p>⚠ Feed unavailable</p><a href="${fallbackLink}" target="_blank">Visit source ↗</a></div>`;
 }
-async function loadAllFeeds(){for(const f of FEEDS)loadFeed(f.id);}
+async function loadAllFeeds(){return Promise.all(FEEDS.map(f=>loadFeed(f.id)));}
 
 const AI_TOPICS={
-  threat:{color:"#ff6b35",prompt:`Environmental crime intelligence analyst. Today: ${today}. Write 5 intelligence bullets on current global environmental crime threats. Format: **CATEGORY**: insight under 25 words. No preamble. Start with **WILDLIFE TRAFFICKING**:`},
-  hotspot:{color:"#e8c547",prompt:`Geospatial environmental crime analyst. Today: ${today}. List 5 highest-priority geographic hotspots for environmental crime. Format: **REGION**: crime type, why escalating, enforcement status. 25 words max each. No preamble.`},
-  species:{color:"#c77dff",prompt:`CITES/IUCN analyst. Today: ${today}. List 5 species under highest current trafficking pressure. Format: **Common Name** (Scientific) | IUCN status | primary threat | main route. 25 words max. No preamble.`},
-  policy:{color:"#74c69d",prompt:`Environmental policy analyst. Today: ${today}. List 5 recent policy developments affecting environmental crime enforcement. Format: **BODY**: summary under 25 words. No preamble.`},
+  threat:{color:"#ff6b35",title:"Threat"},
+  hotspot:{color:"#e8c547",title:"Hotspots"},
+  species:{color:"#c77dff",title:"Species"},
+  policy:{color:"#74c69d",title:"Policy"},
 };
 function renderAI(txt,color){
   if(!txt)return`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
@@ -728,6 +743,120 @@ function renderAI(txt,color){
   if(txt.includes("file://"))return`<div class="ainok" style="padding:12px;"><p style="color:${color};font-weight:700;margin-bottom:8px;">⚠ Browser Security Block</p><p style="margin-bottom:6px;">Browsers block requests from <code style="color:var(--blue)">file://</code> pages to external URLs. Serve the dashboard from a local server instead:</p><p style="font-size:.68rem;color:var(--blue);margin:4px 0;font-family:monospace;">python3 -m http.server 8080</p><p style="font-size:.65rem;color:var(--dim);">Then open: <a href="http://localhost:8080" target="_blank" style="color:var(--green)">http://localhost:8080</a></p></div>`;
   if(txt.startsWith("ERR:"))return`<div class="aierr">⚠ ${txt}</div>`;
   return`<div class="aic">${txt.split("\n").map(l=>l.trim()).filter(Boolean).map(ln=>{ln=ln.replace(/^[\d]+\.\s*/,"").replace(/^[-•*]\s*/,"");if(!ln)return"";return`<div class="aib">${ln.replace(/\*\*([^*]+)\*\*/g,`<strong style="color:${color}">$1</strong>`)}</div>`;}).join("")}</div>`;
+}
+function renderAIItems(items,color,emptyLabel){
+  if(!Array.isArray(items)||!items.length)return`<div class="aierr">⚠ ${emptyLabel}</div>`;
+  return`<div class="aic">${items.map(item=>`<div class="aib">${String(item).replace(/\*\*([^*]+)\*\*/g,`<strong style="color:${color}">$1</strong>`)}</div>`).join("")}</div>`;
+}
+function setAILoading(){
+  Object.keys(AI_TOPICS).forEach(id=>{
+    document.getElementById(`ai-panel-${id}`).innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
+  });
+}
+function renderAIResponse(payload){
+  if(typeof payload==="string"){
+    Object.entries(AI_TOPICS).forEach(([id,cfg])=>{
+      document.getElementById(`ai-panel-${id}`).innerHTML=renderAI(payload,cfg.color);
+    });
+    return;
+  }
+  Object.entries(AI_TOPICS).forEach(([id,cfg])=>{
+    document.getElementById(`ai-panel-${id}`).innerHTML=renderAIItems(payload?.[id],cfg.color,`${cfg.title} briefing unavailable`);
+  });
+}
+function pickTopLines(items,mapFn,limit=5){
+  return (items||[]).slice(0,limit).map(mapFn).filter(Boolean);
+}
+function cleanBriefingText(s=""){
+  return String(s).replace(/\s+/g," ").trim();
+}
+function feedLabel(feedId){
+  return FEEDS.find(f=>f.id===feedId)?.label?.replace(/[^\w\s/.-]/g,"").trim() || feedId;
+}
+function summarizeFeedContext(){
+  return Object.entries(dashboardState.feeds).flatMap(([feedId,items]) =>
+    (items||[]).slice(0,3).map(item =>
+      `[${feedLabel(feedId)}] ${cleanBriefingText(item.title)}${item.desc?` — ${cleanBriefingText(item.desc).slice(0,180)}`:""}${item.pubDate?` (${item.pubDate})`:""}`
+    )
+  ).slice(0,18);
+}
+function summarizeEnforcementContext(){
+  return (dashboardState.wjc||[]).slice(0,6).map(item =>
+    `${cleanBriefingText(item.title)}${item.desc?` — ${cleanBriefingText(item.desc).slice(0,180)}`:""}${item.pubDate?` (${item.pubDate})`:""}`
+  );
+}
+function summarizeEONETContext(){
+  return (dashboardState.eonet||[]).slice(0,8).map(ev => `${ev.category}: ${cleanBriefingText(ev.title)} (${ev.date})`);
+}
+function summarizeReliefContext(){
+  return (dashboardState.relief||[]).slice(0,8).map(ev => `${cleanBriefingText(ev.name)} | ${ev.country} | ${ev.status} | ${ev.date}`);
+}
+function summarizeNewsSignals(){
+  return [...summarizeFeedContext(), ...summarizeEnforcementContext().map(item=>`[WJC] ${item}`)].slice(0,24);
+}
+function summarizeESI(){
+  return (dashboardState.esi||[]).slice(0,5).map(c=>`${c.name} (${c.score}, ${scoreLabel(c.score)})`).join("; ") || "No ESI data.";
+}
+function buildAIPrompt(){
+  const newsSignals=summarizeNewsSignals();
+  return `You are producing the dashboard's daily environmental intelligence briefing for ${today}.
+
+Use ONLY the news and investigative feed items below. Ignore weather, climate anomaly, disaster, CO2, ESI, or any other raw-data context not present in the feed items.
+If the feed evidence is thin, be cautious and say likely/indicates rather than inventing facts.
+Prioritize recency, operational detail, named places, named taxa, routes, and enforcement detail.
+Return valid minified JSON only with this exact schema:
+{"threat":["..."],"hotspot":["..."],"species":["..."],"policy":["..."]}
+
+This dashboard is for condensed source-driven intelligence, not generic environmental education.
+Bad bullets to avoid:
+- **CLIMATE CHANGE**: Rising CO2 levels threaten ecosystems
+- **DEFORESTATION**: Land clearing harms biodiversity
+- **POLLUTION**: Toxic waste affects human health
+- **OVERFISHING**: Depletes marine species
+
+Good bullets are specific, current, and grounded in the supplied feed items. They should mention a place, route, actor, taxon, enforcement mechanism, or policy body when relevant.
+
+Rules:
+- Every bullet must be traceable to one or more feed items below and must end with a source tag in this format: [Source: outlet]
+- threat: exactly 5 bullets. Summarize the most imminent threats emerging from the feed items. Each one must include (1) a named geography, (2) the threat vector or modus operandi, and (3) a practical response. Format **THREAT / PLACE**: sentence [Source: outlet].
+- hotspot: exactly 5 bullets. Each one must name a country/region and explain the dominant environmental issue plus why it is acute now, using the feed evidence only. Format **PLACE**: sentence [Source: outlet].
+- species: exactly 10 bullets. Include both terrestrial and marine taxa when supported by the feeds. Prefer species names, but genus/family-level labels are allowed when the reporting is broader. Each bullet must include the threat and one conservation recommendation. Format **TAXON**: sentence [Source: outlet].
+- policy: exactly 5 bullets. Each one must name the country/body, the environmental policy or enforcement change reported in the feeds, and one likely repercussion. Format **BODY / PLACE**: sentence [Source: outlet].
+- Do not use generic placeholders like "rising CO2", "land clearing", or "depletes species" unless they are explicitly tied to named places and current reporting in the feed items.
+- If a section lacks enough evidence for certainty, write a cautious but still specific bullet using words like "likely", "signals", or "indicates".
+- Keep each bullet between 18 and 45 words. No markdown list markers. No prose outside JSON.
+
+Feed items:
+${newsSignals.join("\n") || "None"}`;
+}
+function isBulletSpecific(section,text){
+  const v=cleanBriefingText(text);
+  const generic=/\b(rising co2 levels|land clearing harms biodiversity|toxic waste affects human health|depletes marine species|destroys habitats)\b/i.test(v);
+  const hasSourceTag=/\[Source:\s*[^\]]+\]$/i.test(v);
+  if(generic) return false;
+  if(!hasSourceTag) return false;
+  if(section==="species") return v.length >= 40 && /recommend|protect|enforc|monitor|closure|quota|patrol|habitat|bycatch|trade/i.test(v);
+  return v.length >= 45 && /[A-Z][a-z]+(?:\s[A-Z][a-z]+){0,2}/.test(v) && /response|enforc|patrol|monitor|ban|moratorium|route|port|fleet|seiz|smuggl|permit|crackdown|closure|prosecution|inspection|intel|reported|signals|indicates/i.test(v);
+}
+function isPayloadInformative(payload){
+  const required={threat:5, hotspot:5, species:10, policy:5};
+  return Object.entries(required).every(([section,count])=>{
+    const items=payload?.[section];
+    return Array.isArray(items) && items.length===count && items.every(item=>isBulletSpecific(section,item));
+  });
+}
+function parseAIJSON(text){
+  const cleaned=String(text||"").trim().replace(/^```json\s*/i,"").replace(/^```/,"").replace(/```$/,"").trim();
+  const start=cleaned.indexOf("{");
+  const end=cleaned.lastIndexOf("}");
+  if(start===-1||end===-1) throw new Error("JSON not found in model output");
+  const parsed=JSON.parse(cleaned.slice(start,end+1));
+  return {
+    threat:Array.isArray(parsed.threat)?parsed.threat:[],
+    hotspot:Array.isArray(parsed.hotspot)?parsed.hotspot:[],
+    species:Array.isArray(parsed.species)?parsed.species:[],
+    policy:Array.isArray(parsed.policy)?parsed.policy:[],
+  };
 }
 async function fetchAI(prompt){
   if(!AI_PROXY_URL) return "NO_PROXY";
@@ -762,10 +891,51 @@ async function fetchAI(prompt){
     return "ERR:"+e.message;
   }
 }
-async function runAllAI(){
-  document.getElementById("ai-upd").textContent="⏳";document.getElementById("ai-refresh-btn").disabled=true;
-  await Promise.all(Object.entries(AI_TOPICS).map(async([id,cfg])=>{document.getElementById("ai-panel-"+id).innerHTML=`<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;document.getElementById("ai-panel-"+id).innerHTML=renderAI(await fetchAI(cfg.prompt),cfg.color);}));
-  document.getElementById("ai-upd").textContent="UPDATED "+tsNow();document.getElementById("ai-refresh-btn").disabled=false;
+async function runAllAI(forceRefresh=false){
+  document.getElementById("ai-upd").textContent=forceRefresh?"REFRESHING":"⏳";
+  document.getElementById("ai-refresh-btn").disabled=true;
+  setAILoading();
+  try{
+    if(!forceRefresh){
+      const cached = JSON.parse(localStorage.getItem(AI_CACHE_KEY) || "null");
+      if(cached?.date === todayISO && cached?.payload){
+        renderAIResponse(cached.payload);
+        document.getElementById("ai-upd").textContent=`DAILY CACHE ${cached.date}`;
+        return;
+      }
+    }
+    const raw = await fetchAI(buildAIPrompt());
+    if(typeof raw === "string" && raw.startsWith("ERR:")){
+      document.getElementById("ai-upd").textContent="AI ERROR";
+      renderAIResponse(raw);
+      return;
+    }
+    if(raw === "NO_PROXY" || String(raw).includes("file://")){
+      document.getElementById("ai-upd").textContent="AI SETUP";
+      renderAIResponse(raw);
+      return;
+    }
+    let payload = parseAIJSON(raw);
+    if(!isPayloadInformative(payload)){
+      const repairPrompt = `${buildAIPrompt()}
+
+Your previous answer was rejected for being too generic. Regenerate it using only the feed items, and make every bullet end with a [Source: outlet] tag. Do not use raw-data reasoning or broad theme labels by themselves. Return JSON only.`;
+      const retryRaw = await fetchAI(repairPrompt);
+      if(typeof retryRaw === "string" && (retryRaw.startsWith("ERR:") || retryRaw === "NO_PROXY" || retryRaw.includes("file://"))){
+        throw new Error(retryRaw.replace(/^ERR:/,""));
+      }
+      payload = parseAIJSON(retryRaw);
+      if(!isPayloadInformative(payload)) throw new Error("Model returned generic briefing; try refresh again after more source data loads");
+    }
+    localStorage.setItem(AI_CACHE_KEY, JSON.stringify({date:todayISO, payload}));
+    renderAIResponse(payload);
+    document.getElementById("ai-upd").textContent=`UPDATED ${todayISO} ${tsNow()}`;
+  }catch(e){
+    document.getElementById("ai-upd").textContent="AI ERROR";
+    renderAIResponse(`ERR:${e.message}`);
+  }finally{
+    document.getElementById("ai-refresh-btn").disabled=false;
+  }
 }
 document.getElementById("ai-tab-bar").addEventListener("click",e=>{
   const btn=e.target.closest(".tbtn");if(!btn||!btn.dataset.ai)return;
@@ -788,6 +958,7 @@ async function loadEONET(){
     const WANT=["Wildfires","Volcanoes","Floods","Severe Storms","Droughts","Dust and Haze","Landslides"];
     const events=(d.events||[]).filter(ev=>{const cat=ev.categories?.[0]?.title||"";if(!WANT.includes(cat))return false;if(cat==="Wildfires"){return new Date(ev.geometry?.[0]?.date||0)>=cutoff48;}return true;}).sort((a,b)=>new Date(b.geometry?.[0]?.date||0)-new Date(a.geometry?.[0]?.date||0));
     upd.textContent="UPDATED "+tsNow();
+    dashboardState.eonet=events.map(ev=>({title:ev.title,category:ev.categories?.[0]?.title||"Unknown",date:(ev.geometry?.[0]?.date||"").slice(0,10)}));
     if(!events.length){box.innerHTML=`<div class="empty"><p>No open events (7d)</p><a href="https://eonet.gsfc.nasa.gov/" target="_blank">Browse EONET ↗</a></div>`;return;}
     const ICON={Wildfires:"🔥",Volcanoes:"🌋",Floods:"🌊","Severe Storms":"🌪",Droughts:"☀️","Dust and Haze":"💨",Landslides:"⛰️"};
     const COL={Wildfires:"#ff2244",Volcanoes:"#ff6b35",Floods:"#a8dadc","Severe Storms":"#c77dff",Droughts:"#e8c547","Dust and Haze":"#f7c59f",Landslides:"#7aaa7c"};
@@ -818,6 +989,7 @@ async function loadERA5(){
   }));
   upd.textContent="UPDATED "+tsNow();
   const valid=results.filter(Boolean);
+  dashboardState.era5=valid;
   if(!valid.length){box.innerHTML=`<div class="empty"><p>⚠ ERA5 unavailable</p></div>`;return;}
   box.innerHTML=valid.map(r=>{
     const col=r.anomaly>2?"#ff2244":r.anomaly>0.5?"#ff6b35":r.anomaly>-0.5?"#e8c547":r.anomaly>-2?"#74c69d":"#a8dadc";
@@ -845,6 +1017,7 @@ async function loadSST(){
   }));
   upd.textContent="UPDATED "+tsNow();
   const valid=results.filter(Boolean);
+  dashboardState.sst=valid;
   if(!valid.length){box.innerHTML=`<div class="empty"><p>⚠ SST unavailable</p></div>`;return;}
   box.innerHTML=valid.map(r=>{
     const col=r.anomaly>2?"#ff2244":r.anomaly>0.5?"#ff6b35":r.anomaly>-0.5?"#e8c547":"#74c69d";
@@ -860,6 +1033,7 @@ async function loadWJC(){
   let items=await fetchRSS("https://wildlifejustice.org/feed/",15);
   if(!items.length)items=await fetchRSS("https://news.mongabay.com/feed/?post_type=posts&topic=wildlife-crime",15);
   upd.textContent="UPDATED "+tsNow();
+  dashboardState.wjc=items;
   box.innerHTML=items.length?items.map(i=>`<div class="ai"><div style="display:flex;gap:7px;align-items:flex-start;"><span style="color:#ff2244;font-size:.85rem;flex-shrink:0;">🚨</span><div style="min-width:0;"><a href="${i.link}" target="_blank" style="display:block;font-size:.72rem;font-weight:700;color:#ff2244;text-decoration:none;margin-bottom:2px;line-height:1.3;">${i.title}</a>${i.desc?`<p style="font-size:.65rem;color:var(--txt);margin:0 0 2px;line-height:1.35;">${i.desc}</p>`:""}<span class="adt">${i.pubDate}</span></div></div></div>`).join(""):`<div class="empty"><p>⚠ Feed unavailable</p><a href="https://wildlifejustice.org/news/" target="_blank">WJC ↗</a></div>`;
 }
 
@@ -872,6 +1046,7 @@ async function loadReliefWeb(){
     if(!r.ok) throw new Error("HTTP "+r.status);
     const d=await r.json();upd.textContent="UPDATED "+tsNow();
     if(!d.data?.length) throw new Error("empty");
+    dashboardState.relief=d.data.map(ev=>({name:ev.fields?.name||(ev.fields?.type||[]).map(t=>t.name).join(', '),country:(ev.fields?.country||[]).map(c=>c.name).join(', ')||'—',date:(ev.fields?.date?.created||'').slice(0,10),status:(ev.fields?.status||'ongoing').toUpperCase()}));
     box.innerHTML=d.data.map(ev=>{
       const f=ev.fields,name=f.name||(f.type||[]).map(t=>t.name).join(", ");
       const country=(f.country||[]).map(c=>c.name).join(", ")||"—",date=(f.date?.created||"").slice(0,10);
@@ -881,6 +1056,7 @@ async function loadReliefWeb(){
   }catch(e){
     const items=await fetchRSS("https://reliefweb.int/disasters/rss.xml",10);
     upd.textContent="UPDATED "+tsNow();
+    dashboardState.relief=items.map(i=>({name:i.title,country:'—',date:i.pubDate,status:'RSS'}));
     box.innerHTML=items.length?items.map(i=>`<div class="ai"><div style="font-size:.72rem;font-weight:600;color:#e8c547;margin-bottom:2px;">${i.title}</div><span class="adt">${i.pubDate}</span></div>`).join(""):`<div class="empty"><p>⚠ ReliefWeb unavailable</p><a href="https://reliefweb.int/disasters" target="_blank">reliefweb.int ↗</a></div>`;
   }
 }
@@ -894,11 +1070,12 @@ async function loadTrends(){
     const txt=await r.text(),data=JSON.parse(txt.replace(/^[^{]+/,""));
     const titles=data.default.trendingSearchesDays[0].trendingSearches.map(s=>s.title.query);
     upd.textContent="UPDATED "+tsNow();
+    dashboardState.trends=TREND_TERMS.map(term=>({term,hit:titles.find(t=>t.toLowerCase().includes(term.toLowerCase()))||''}));
     box.innerHTML=TREND_TERMS.map(term=>{
       const hit=titles.find(t=>t.toLowerCase().includes(term.toLowerCase())),col=hit?"#ff6b35":"#2e4a30";
       return`<div style="padding:7px 9px;border-bottom:1px solid var(--brd);border-left:2px solid ${hit?"var(--orange)":"transparent"};"><div style="display:flex;justify-content:space-between;align-items:center;"><span style="color:${col};font-size:.76rem;font-weight:600;">${term}</span>${hit?`<span style="font-size:.58rem;font-weight:700;color:var(--orange);background:rgba(255,107,53,.12);border:1px solid var(--orange);padding:1px 5px;border-radius:2px;animation:pulse 1.5s ease-in-out infinite;">⚡ SPIKE</span>`:""}</div>${hit?`<p style="font-size:.62rem;color:var(--txt2);margin:2px 0 0;">→ "${hit}"</p>`:""}</div>`;
     }).join("");
-  }catch(e){upd.textContent="UPDATED "+tsNow();box.innerHTML=TREND_TERMS.map(t=>`<div style="padding:7px 9px;border-bottom:1px solid var(--brd);"><span style="color:var(--dim);font-size:.76rem;">${t}</span></div>`).join("");}
+  }catch(e){upd.textContent="UPDATED "+tsNow();dashboardState.trends=TREND_TERMS.map(term=>({term,hit:''}));box.innerHTML=TREND_TERMS.map(t=>`<div style="padding:7px 9px;border-bottom:1px solid var(--brd);"><span style="color:var(--dim);font-size:.76rem;">${t}</span></div>`).join("");}
 }
 
 async function loadCO2(){
@@ -911,8 +1088,9 @@ async function loadCO2(){
     const prevYr=valid.filter(r=>parseInt(r[0])===(parseInt(last[0])-1));
     const delta=prevYr.length?(ppm-parseFloat(prevYr[prevYr.length-1][4])).toFixed(2):null;
     const dc=delta&&parseFloat(delta)>2?"#ff2244":delta&&parseFloat(delta)>1?"#ff6b35":"#e8c547";
+    dashboardState.co2={ppm:ppm.toFixed(2),date,delta};
     box.innerHTML=`<div class="co2w"><div class="co2b"><div class="co2v">${ppm}</div><div style="font-size:.57rem;color:var(--dim);">ppm CO\u2082</div></div><div class="co2sep"></div><div class="co2b"><div class="co2d" style="color:${dc};">${delta?"+"+delta:"—"}</div><div class="co2l">YR-ON-YR</div></div><div class="co2sep"></div><div class="co2b"><div style="font-size:.63rem;color:var(--txt2);">${date}</div><div class="co2l">MAUNA LOA</div><a href="https://gml.noaa.gov/ccgg/trends/" target="_blank" style="font-size:.57rem;color:var(--dim);text-decoration:none;">NOAA ↗</a></div></div>`;
-  }catch(e){box.innerHTML=`<div style="padding:8px;font-size:.67rem;color:var(--dim);">⚠ CO\u2082 data unavailable</div>`;}
+  }catch(e){dashboardState.co2=null;box.innerHTML=`<div style="padding:8px;font-size:.67rem;color:var(--dim);">⚠ CO\u2082 data unavailable</div>`;}
 }
 
 document.getElementById("sources-grid").innerHTML=[
@@ -1090,6 +1268,7 @@ async function buildESI() {
   }
 
   esiCache = results.sort((a,b) => a.score - b.score);
+  dashboardState.esi = esiCache;
   renderESIList(esiCache);
   upd.textContent = "UPDATED "+tsNow();
 }
@@ -1226,7 +1405,9 @@ function resetPanelSize(){
 
 async function init(){
   buildFeedTabs();
-  await Promise.all([loadAllFeeds(),runAllAI(),buildESI(),loadEONET(),loadERA5(),loadSST(),loadWJC(),loadReliefWeb(),loadTrends(),loadCO2()]);
+  await Promise.all([loadAllFeeds(),loadWJC()]);
+  await runAllAI();
+  await Promise.all([buildESI(),loadEONET(),loadERA5(),loadSST(),loadReliefWeb(),loadTrends(),loadCO2()]);
 }
 init();
 
