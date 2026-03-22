@@ -841,18 +841,60 @@ function isPayloadInformative(payload){
     return Array.isArray(items) && items.length===count && items.every(item=>isBulletSpecific(section,item));
   });
 }
+function parseAISectionsFromText(text){
+  const lines=String(text||"").split("\n").map(line=>line.trim()).filter(Boolean);
+  const payload={threat:[], hotspot:[], species:[], policy:[]};
+  let current=null;
+  const sectionMap={
+    threat:"threat", threats:"threat",
+    hotspot:"hotspot", hotspots:"hotspot",
+    species:"species",
+    policy:"policy", policies:"policy",
+  };
+  for(const line of lines){
+    const headerMatch=line.match(/^(threats?|hotspots?|species|polic(?:y|ies))\s*:?\s*$/i);
+    if(headerMatch){
+      current=sectionMap[headerMatch[1].toLowerCase()];
+      continue;
+    }
+    const inlineMatch=line.match(/^(threats?|hotspots?|species|polic(?:y|ies))\s*:\s*(.+)$/i);
+    if(inlineMatch){
+      current=sectionMap[inlineMatch[1].toLowerCase()];
+      payload[current].push(inlineMatch[2].trim());
+      continue;
+    }
+    if(current) payload[current].push(line.replace(/^[-•*\d.)\s]+/,"").trim());
+  }
+  return payload;
+}
 function parseAIJSON(text){
   const cleaned=String(text||"").trim().replace(/^```json\s*/i,"").replace(/^```/,"").replace(/```$/,"").trim();
   const start=cleaned.indexOf("{");
   const end=cleaned.lastIndexOf("}");
-  if(start===-1||end===-1) throw new Error("JSON not found in model output");
-  const parsed=JSON.parse(cleaned.slice(start,end+1));
-  return {
-    threat:Array.isArray(parsed.threat)?parsed.threat:[],
-    hotspot:Array.isArray(parsed.hotspot)?parsed.hotspot:[],
-    species:Array.isArray(parsed.species)?parsed.species:[],
-    policy:Array.isArray(parsed.policy)?parsed.policy:[],
-  };
+  if(start!==-1&&end!==-1){
+    const parsed=JSON.parse(cleaned.slice(start,end+1));
+    return {
+      threat:Array.isArray(parsed.threat)?parsed.threat:[],
+      hotspot:Array.isArray(parsed.hotspot)?parsed.hotspot:[],
+      species:Array.isArray(parsed.species)?parsed.species:[],
+      policy:Array.isArray(parsed.policy)?parsed.policy:[],
+    };
+  }
+  const parsed=parseAISectionsFromText(cleaned);
+  if(Object.values(parsed).some(arr=>arr.length)) return parsed;
+  throw new Error("JSON not found in model output");
+}
+async function coerceAIOutput(rawText){
+  try{
+    return parseAIJSON(rawText);
+  }catch{
+    const repairPrompt=`Convert the following environmental intelligence output into minified JSON with keys threat, hotspot, species, policy. Each key must map to an array of strings. Preserve wording where possible. Return JSON only.\n\n${String(rawText).slice(0,5000)}`;
+    const repaired=await fetchAI(repairPrompt);
+    if(typeof repaired==="string" && (repaired.startsWith("ERR:") || repaired==="NO_PROXY" || repaired.includes("file://"))){
+      throw new Error(repaired.replace(/^ERR:/,""));
+    }
+    return parseAIJSON(repaired);
+  }
 }
 async function fetchAI(prompt){
   if(!AI_PROXY_URL) return "NO_PROXY";
@@ -911,7 +953,7 @@ async function runAllAI(forceRefresh=false){
       renderAIResponse(raw);
       return;
     }
-    let payload = parseAIJSON(raw);
+    let payload = await coerceAIOutput(raw);
     if(!isPayloadInformative(payload)){
       const repairPrompt = `${buildAIPrompt()}
 
@@ -920,7 +962,7 @@ Your previous answer was rejected for being too generic. Regenerate it using onl
       if(typeof retryRaw === "string" && (retryRaw.startsWith("ERR:") || retryRaw === "NO_PROXY" || retryRaw.includes("file://"))){
         throw new Error(retryRaw.replace(/^ERR:/,""));
       }
-      payload = parseAIJSON(retryRaw);
+      payload = await coerceAIOutput(retryRaw);
       if(!isPayloadInformative(payload)) throw new Error("Model returned generic briefing; try refresh again after more source data loads");
     }
     localStorage.setItem(AI_CACHE_KEY, JSON.stringify({date:todayISO, payload}));
