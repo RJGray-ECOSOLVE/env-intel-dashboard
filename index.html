@@ -387,7 +387,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
         <span class="phl">🌍 ENVIRONMENTAL STABILITY INDEX</span>
         <div class="phr">
           <span class="fupd" id="esi-upd">—</span>
-          <button class="rbtn" onclick="buildESI()" style="color:#39d353;border-color:#39d353;">↻</button>
+          <button class="rbtn" onclick="buildESI(true)" style="color:#39d353;border-color:#39d353;">↻</button>
           <div class="info-wrap"><button class="info-btn" aria-label="Info">i</button><div class="info-tooltip"><strong>ENVIRONMENTAL STABILITY INDEX</strong>
             <div class="src"><span class="src-tag">WORLD BANK</span>Forest area % (AG.LND.FRST.ZS) — weight 30%</div>
             <div class="src"><span class="src-tag">WORLD BANK</span>Protected areas % (ER.PTD.TOTL.ZS) — weight 20%</div>
@@ -397,7 +397,8 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
             <div class="src"><span class="src-tag">NOTE</span>Missing values default to neutral (50). WB data ~1–2 yr lag.</div></div></div>
         </div>
       </div>
-      <div class="pnote" style="flex-shrink:0;">Click a country to expand full intel breakdown</div>
+      <div class="pnote" style="flex-shrink:0;">All countries · region tabs appear after load · click a country for full breakdown</div>
+      <div class="tbar" id="esi-region-bar" style="flex-shrink:0;"></div>
       <div class="pb" id="esi-out"><div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div></div>
     </div>
     <div id="esi-detail" style="width:0;flex-shrink:0;overflow:hidden;border-left:1px solid var(--brd);background:var(--bg-c);display:flex;flex-direction:column;transition:width .25s ease;">
@@ -1188,31 +1189,11 @@ document.getElementById("sources-grid").innerHTML=[
 // sub-scores across 5 dimensions per country.
 // ════════════════════════════════════════════════════════════
 
-const ESI_COUNTRIES = [
-  {code:"BRA",name:"Brazil",       flag:"🇧🇷", region:"Americas"},
-  {code:"IDN",name:"Indonesia",    flag:"🇮🇩", region:"SE Asia"},
-  {code:"COD",name:"DR Congo",     flag:"🇨🇩", region:"Africa"},
-  {code:"IND",name:"India",        flag:"🇮🇳", region:"Asia"},
-  {code:"CHN",name:"China",        flag:"🇨🇳", region:"Asia"},
-  {code:"RUS",name:"Russia",       flag:"🇷🇺", region:"Eurasia"},
-  {code:"AUS",name:"Australia",    flag:"🇦🇺", region:"Oceania"},
-  {code:"USA",name:"United States",flag:"🇺🇸", region:"Americas"},
-  {code:"NGA",name:"Nigeria",      flag:"🇳🇬", region:"Africa"},
-  {code:"ARG",name:"Argentina",    flag:"🇦🇷", region:"Americas"},
-  {code:"MYS",name:"Malaysia",     flag:"🇲🇾", region:"SE Asia"},
-  {code:"MEX",name:"Mexico",       flag:"🇲🇽", region:"Americas"},
-  {code:"ETH",name:"Ethiopia",     flag:"🇪🇹", region:"Africa"},
-  {code:"PHL",name:"Philippines",  flag:"🇵🇭", region:"SE Asia"},
-  {code:"PER",name:"Peru",         flag:"🇵🇪", region:"Americas"},
-  {code:"CMR",name:"Cameroon",     flag:"🇨🇲", region:"Africa"},
-  {code:"VNM",name:"Vietnam",      flag:"🇻🇳", region:"SE Asia"},
-  {code:"ZMB",name:"Zambia",       flag:"🇿🇲", region:"Africa"},
-  {code:"BOL",name:"Bolivia",      flag:"🇧🇴", region:"Americas"},
-  {code:"PNG",name:"Papua N.G.",   flag:"🇵🇬", region:"Oceania"},
-];
+const ESI_REGION_ORDER=["All","Africa","Americas","Asia","Europe","Oceania"];
+let esiRegionFilter="All";
+let esiLoadPromise=null;
 
 // World Bank indicator IDs for each dimension
-// We fetch the most recent value and normalize to 0-100
 const WB_INDICATORS = {
   deforestation: "AG.LND.FRST.ZS",   // Forest area % of land
   co2:           "EN.ATM.CO2E.PC",    // CO2 emissions per capita
@@ -1233,27 +1214,59 @@ const DIM_WEIGHTS = {
 // Cache for built ESI data
 let esiCache = null;
 
-// Fetch a World Bank indicator for a country (latest year)
-async function fetchWBIndicator(countryCode, indicator) {
-  try {
-    const url = `https://api.worldbank.org/v2/country/${countryCode}/indicator/${indicator}?format=json&mrv=1&per_page=1`;
-    const r = await fetch(url, {signal: AbortSignal.timeout(8000)});
-    const d = await r.json();
-    const val = d[1]?.[0]?.value;
-    return val != null ? parseFloat(val) : null;
-  } catch(e) { return null; }
+function mapCountryRegion(country){
+  if(country.region==="Americas") return "Americas";
+  if(country.region==="Africa") return "Africa";
+  if(country.region==="Europe") return "Europe";
+  if(country.region==="Oceania") return "Oceania";
+  if(country.region==="Asia") return "Asia";
+  return country.region || "Other";
 }
-
-// Fetch ReliefWeb disaster count for a country
-async function fetchDisasterCount(countryName) {
+async function fetchAllCountryMeta(){
   try {
-    const url = `https://api.reliefweb.int/v1/disasters?appname=envdash&filter[field]=country.name&filter[value]=${encodeURIComponent(countryName)}&sort[]=date:desc&limit=10&fields[include][]=date&fields[include][]=status`;
+    const r = await fetch("https://restcountries.com/v3.1/all?fields=cca3,name,flag,region,independent",{signal:AbortSignal.timeout(15000)});
+    const d = await r.json();
+    return (Array.isArray(d)?d:[]).filter(c=>
+      c?.cca3 && c?.name?.common && c?.region && c.region!=="Antarctic"
+    ).map(c=>({
+      code:c.cca3,
+      name:c.name.common,
+      flag:c.flag || "",
+      region:mapCountryRegion(c),
+    })).sort((a,b)=>a.name.localeCompare(b.name));
+  } catch(e) { return []; }
+}
+async function fetchWBIndicatorMap(indicator) {
+  try {
+    const url = `https://api.worldbank.org/v2/country/all/indicator/${indicator}?format=json&mrv=1&per_page=400`;
     const r = await fetch(url, {signal: AbortSignal.timeout(8000)});
     const d = await r.json();
+    const rows=Array.isArray(d?.[1])?d[1]:[];
+    const out={};
+    rows.forEach(row=>{
+      const code=row.countryiso3code;
+      const val=row.value;
+      if(code && val!=null && out[code]==null) out[code]=parseFloat(val);
+    });
+    return out;
+  } catch(e) { return {}; }
+}
+async function fetchDisasterCountMap() {
+  try {
     const cutoff = new Date(Date.now() - 365*86400*1000);
-    const recent = (d.data||[]).filter(ev => new Date(ev.fields?.date?.created||0) > cutoff);
-    return recent.length;
-  } catch(e) { return 0; }
+    const url="https://api.reliefweb.int/v1/disasters?appname=envdash&profile=list&preset=latest&slim=1&fields[include][]=date&fields[include][]=country&limit=1000";
+    const r = await fetch(url, {signal: AbortSignal.timeout(12000), headers:{"Accept":"application/json"}});
+    const d = await r.json();
+    const counts={};
+    (d.data||[]).forEach(ev=>{
+      if(new Date(ev.fields?.date?.created||0) <= cutoff) return;
+      (ev.fields?.country||[]).forEach(c=>{
+        const code=c.iso3 || c.shortname || c.name;
+        if(code) counts[code]=(counts[code]||0)+1;
+      });
+    });
+    return counts;
+  } catch(e) { return {}; }
 }
 
 // Normalise raw indicator to 0–100 score
@@ -1265,27 +1278,20 @@ function normalise(val, min, max, invert=false) {
   return invert ? 100 - score : score;
 }
 
-async function computeESICountry(c) {
-  // Fetch all indicators in parallel
-  const [forest, co2, biodiv, water, pm25, disasters] = await Promise.all([
-    fetchWBIndicator(c.code, WB_INDICATORS.deforestation),
-    fetchWBIndicator(c.code, WB_INDICATORS.co2),
-    fetchWBIndicator(c.code, WB_INDICATORS.biodiversity),
-    fetchWBIndicator(c.code, WB_INDICATORS.waterStress),
-    fetchWBIndicator(c.code, WB_INDICATORS.airPollution),
-    fetchDisasterCount(c.name),
-  ]);
-
-  // Score each dimension (0=worst, 100=best)
+function computeESICountry(c, maps) {
+  const forest=maps.deforestation[c.code] ?? null;
+  const co2=maps.co2[c.code] ?? null;
+  const biodiv=maps.biodiversity[c.code] ?? null;
+  const water=maps.waterStress[c.code] ?? null;
+  const pm25=maps.airPollution[c.code] ?? null;
+  const disasters=maps.disasters[c.code] ?? 0;
   const dims = {
-    deforestation: normalise(forest, 0, 80),          // higher forest % = better
-    biodiversity:  normalise(biodiv, 0, 50),           // more protected area = better
-    co2:           normalise(co2, 0, 20, true),        // lower CO2 = better
-    airPollution:  normalise(pm25, 0, 80, true),       // lower PM2.5 = better
-    disasters:     normalise(disasters, 0, 8, true),   // fewer disasters = better
+    deforestation: normalise(forest, 0, 80),
+    biodiversity:  normalise(biodiv, 0, 50),
+    co2:           normalise(co2, 0, 20, true),
+    airPollution:  normalise(pm25, 0, 80, true),
+    disasters:     normalise(disasters, 0, 8, true),
   };
-
-  // Weighted composite
   const score = Math.round(
     dims.deforestation * DIM_WEIGHTS.deforestation +
     dims.biodiversity  * DIM_WEIGHTS.biodiversity  +
@@ -1294,7 +1300,6 @@ async function computeESICountry(c) {
     dims.disasters     * DIM_WEIGHTS.disasters
   );
 
-  // Raw values for detail panel
   const raw = {
     forest:    forest   != null ? forest.toFixed(1)+"%" : "N/A",
     co2:       co2      != null ? co2.toFixed(1)+" t/cap" : "N/A",
@@ -1320,33 +1325,54 @@ function renderESIBar(score, color, width="100%") {
   </div>`;
 }
 
-async function buildESI() {
+function renderESIRegionTabs(){
+  const bar=document.getElementById("esi-region-bar");
+  if(!bar) return;
+  bar.innerHTML=ESI_REGION_ORDER.map((region,i)=>`<button class="tbtn${region===esiRegionFilter?" active":""}" data-esi-region="${region}" style="${region===esiRegionFilter?"border-bottom:2px solid #39d353;color:#39d353;":""}">${region.toUpperCase()}</button>`).join("");
+}
+async function buildESI(forceRefresh=false) {
   const box = document.getElementById("esi-out");
   const upd = document.getElementById("esi-upd");
+  if(forceRefresh) esiLoadPromise=null;
+  if(esiLoadPromise && !forceRefresh) return esiLoadPromise;
   box.innerHTML = `<div class="spinner"><div class="spinner-ring"></div><div class="spinner-dots"><span></span><span></span><span></span></div><span class="spinner-lbl">LOADING</span></div>`;
   closeESIDetail();
-
-  // Compute in batches of 4 to avoid hammering APIs
-  const results = [];
-  for(let i=0; i<ESI_COUNTRIES.length; i+=4) {
-    const batch = ESI_COUNTRIES.slice(i, i+4);
-    const computed = await Promise.all(batch.map(computeESICountry));
-    results.push(...computed);
-    // Render progress
-    const sorted = [...results].sort((a,b) => a.score - b.score);
-    renderESIList(sorted);
-    upd.textContent = `${results.length}/${ESI_COUNTRIES.length}`;
-  }
-
-  esiCache = results.sort((a,b) => a.score - b.score);
-  dashboardState.esi = esiCache;
-  renderESIList(esiCache);
-  upd.textContent = "UPDATED "+tsNow();
+  renderESIRegionTabs();
+  esiLoadPromise=(async()=>{
+    const countries=await fetchAllCountryMeta();
+    upd.textContent="META";
+    const [deforestation,co2,biodiversity,waterStress,airPollution,disasters] = await Promise.all([
+      fetchWBIndicatorMap(WB_INDICATORS.deforestation),
+      fetchWBIndicatorMap(WB_INDICATORS.co2),
+      fetchWBIndicatorMap(WB_INDICATORS.biodiversity),
+      fetchWBIndicatorMap(WB_INDICATORS.waterStress),
+      fetchWBIndicatorMap(WB_INDICATORS.airPollution),
+      fetchDisasterCountMap(),
+    ]);
+    const maps={deforestation,co2,biodiversity,waterStress,airPollution,disasters};
+    esiCache = countries.map(c=>computeESICountry(c,maps)).sort((a,b)=>a.region.localeCompare(b.region)||a.score-b.score);
+    dashboardState.esi = esiCache;
+    renderESIRegionTabs();
+    renderESIList(esiCache);
+    upd.textContent = `UPDATED ${tsNow()} · ${esiCache.length} COUNTRIES`;
+    return esiCache;
+  })().catch(e=>{
+    box.innerHTML=`<div class="empty"><p>⚠ ESI unavailable</p></div>`;
+    upd.textContent="ERR";
+    esiLoadPromise=null;
+    return [];
+  });
+  return esiLoadPromise;
 }
 
 function renderESIList(countries) {
   const box = document.getElementById("esi-out");
-  box.innerHTML = countries.map(c => {
+  const filtered = esiRegionFilter==="All" ? countries : countries.filter(c=>c.region===esiRegionFilter);
+  if(!filtered.length){
+    box.innerHTML=`<div class="empty"><p>No countries for ${esiRegionFilter}</p></div>`;
+    return;
+  }
+  box.innerHTML = filtered.map(c => {
     const col = scoreColor(c.score);
     const lbl = scoreLabel(c.score);
     return `<div class="esi-row" onclick="openESIDetail('${c.code}')" style="padding:6px 10px;border-bottom:1px solid var(--brd);cursor:pointer;transition:background .1s;" onmouseover="this.style.background='var(--bg-h)'" onmouseout="this.style.background=''">
@@ -1456,6 +1482,10 @@ function closeESIDetail() {
   document.getElementById("esi-list").style.width  = "100%";
   document.getElementById("esi-detail").style.width = "0";
 }
+function queueESILoad(){
+  if(esiCache?.length || esiLoadPromise) return;
+  buildESI();
+}
 
 function resizePanels(){
   const w=document.getElementById("rng-w").value;
@@ -1478,9 +1508,32 @@ async function init(){
   buildFeedTabs();
   await Promise.all([loadAllFeeds(),loadWJC()]);
   await runAllAI();
-  await Promise.all([buildESI(),loadEONET(),loadERA5(),loadSST(),loadReliefWeb(),loadTrends(),loadCO2()]);
+  await Promise.all([loadEONET(),loadERA5(),loadSST(),loadReliefWeb(),loadTrends(),loadCO2()]);
+  renderESIRegionTabs();
+  document.getElementById("esi-out").innerHTML=`<div class="empty"><p>All-country ESI loads on demand.</p><button class="rbtn" onclick="buildESI()" style="color:#39d353;border-color:#39d353;margin-top:6px;">LOAD ESI</button></div>`;
+  const esiPanel=document.getElementById("esi-panel");
+  if("IntersectionObserver" in window){
+    const observer=new IntersectionObserver(entries=>{
+      if(entries.some(entry=>entry.isIntersecting)){
+        queueESILoad();
+        observer.disconnect();
+      }
+    },{threshold:.2});
+    observer.observe(esiPanel);
+  } else {
+    esiPanel.addEventListener("mouseenter",queueESILoad,{once:true});
+  }
 }
 init();
+
+document.getElementById("esi-region-bar").addEventListener("click",e=>{
+  const btn=e.target.closest(".tbtn");
+  if(!btn?.dataset.esiRegion) return;
+  esiRegionFilter=btn.dataset.esiRegion;
+  renderESIRegionTabs();
+  if(esiCache?.length) renderESIList(esiCache);
+  else queueESILoad();
+});
 
 // ── SMART TOOLTIP POSITIONING ────────────────────────────────────────────────
 // Runs on every info-btn mouseenter. Positions tooltip with fixed coords so it
