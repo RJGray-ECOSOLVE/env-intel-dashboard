@@ -71,8 +71,8 @@ body{background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:13p
 /* ── PANEL CARD — uniform height, content scrolls inside ── */
 .panel{background:var(--bg-p);border:1px solid var(--brd);border-radius:3px;
   display:flex;flex-direction:column;overflow:hidden;
-  min-min-height:var(--panel-h);}
-.panel.tall{min-height:calc(var(--panel-h) + 100px);}
+  height:calc(var(--panel-h) + 100px);min-height:calc(var(--panel-h) + 100px);max-height:calc(var(--panel-h) + 100px);}
+.panel.tall{height:calc(var(--panel-h) + 100px);min-height:calc(var(--panel-h) + 100px);max-height:calc(var(--panel-h) + 100px);}
 .panel.wide{grid-column:span 2;}
 
 /* Responsive: fewer columns on smaller screens */
